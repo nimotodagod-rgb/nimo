@@ -142,6 +142,17 @@ def parse_quick_text(raw: str) -> tuple[dict, list[str]]:
             chunks.append(line)
 
     flush()
+    first_photo = values["fotos"][0]
+    combined_client = str(first_photo.get("cliente", "")).strip()
+    combined_match = re.match(r"^(\S+)\s+(.+)$", combined_client)
+    if combined_match:
+        if not values["codigo"]:
+            values["codigo"] = combined_match.group(1).strip()
+        if not values["razao"]:
+            values["razao"] = combined_match.group(2).strip()
+    if not values["microrregiao"] and first_photo.get("cidade"):
+        values["microrregiao"] = str(first_photo["cidade"]).strip()
+
     labels = {
         ("acoes", "vendas"): "Ações Bem Sucedidas — Vendas",
         ("acoes", "marketing"): "Ações Bem Sucedidas — MKT",

@@ -221,10 +221,10 @@ def add_header(doc, page, data):
 
     # Cobre o texto-modelo original, preservando o restante do cabeçalho.
     add_rectangle(doc, page, 20_550, 260, 7_650, 1_710, 0xFFFFFF)
-    add_rectangle(doc, page, 21_710, 430, 5_520, 620, 0xFFF200)
+    add_rectangle(doc, page, 20_650, 430, 7_450, 620, 0xFFF200)
     add_rectangle(doc, page, 20_650, 1_070, 7_450, 620, 0xFFF200)
-    add_text(doc, page, f"{code} – {reason}", 21_710, 440, 5_520, 570, 12.5, True)
-    add_text(doc, page, f"{regional} – {micro}", 20_650, 1_080, 7_450, 570, 11.5, False)
+    add_text(doc, page, f"{code} – {reason}", 20_650, 440, 7_450, 570, 8.5, True)
+    add_text(doc, page, f"{regional} – {micro}", 20_650, 1_080, 7_450, 570, 10.5, False)
 
 
 def add_photo(doc, page, frame, photo_path, context):

@@ -294,9 +294,9 @@ def add_identification_header(root: ET.Element, data: dict) -> None:
         sp_tree,
         next_id,
         name="Identificação amarela 1",
-        x=7_815_600,
+        x=7_434_000,
         y=154_800,
-        width=1_987_200,
+        width=2_682_000,
         height=223_200,
         color="FFF200",
     )
@@ -319,11 +319,11 @@ def add_identification_header(root: ET.Element, data: dict) -> None:
         next_id,
         name="Código e razão",
         text=f"{code} – {reason}",
-        x=7_815_600,
+        x=7_434_000,
         y=158_400,
-        width=1_987_200,
+        width=2_682_000,
         height=205_200,
-        size=1250,
+        size=850,
         bold=True,
     )
     add_textbox(
@@ -335,7 +335,7 @@ def add_identification_header(root: ET.Element, data: dict) -> None:
         y=388_800,
         width=2_682_000,
         height=205_200,
-        size=1150,
+        size=1050,
     )
 
 

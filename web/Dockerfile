@@ -6,14 +6,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    fonts-dejavu-core \
-    fonts-liberation2 \
-    libreoffice-core \
-    libreoffice-impress \
     python3 \
     python3-flask \
     python3-pil \
-    python3-uno \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

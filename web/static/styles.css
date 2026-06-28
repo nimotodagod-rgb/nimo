@@ -270,13 +270,117 @@ details h3 {
   margin-bottom: 14px;
 }
 .preview-head h2 { font-size: 20px; }
-#previewFrame {
-  display: none;
+.preview-deck {
+  display: grid;
+  gap: 14px;
+  max-height: 650px;
+  overflow: auto;
+  padding-right: 4px;
+}
+.preview-deck[hidden] { display: none; }
+.ppt-slide {
+  container-type: inline-size;
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #fff;
+  color: #050505;
+  box-shadow: 0 5px 18px rgba(0,0,0,.34);
+  font-family: "Times New Roman", Times, serif;
+}
+.ppt-header {
+  position: absolute;
+  inset: 0 0 auto;
   width: 100%;
-  height: 630px;
-  border: 0;
-  border-radius: 10px;
-  background: white;
+  height: 13.34%;
+  object-fit: fill;
+}
+.ppt-title {
+  position: absolute;
+  z-index: 2;
+  left: 34.6%;
+  top: 3.7%;
+  width: 27.2%;
+  height: 7.2%;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 2.15cqw;
+}
+.ppt-ident {
+  position: absolute;
+  z-index: 3;
+  top: 2.2%;
+  right: 16.7%;
+  width: 22%;
+  font-family: Arial, sans-serif;
+  font-size: 1.22cqw;
+  text-align: center;
+  line-height: 1.02;
+}
+.ppt-ident div {
+  width: max-content;
+  max-width: 100%;
+  min-width: 74%;
+  margin: 0 auto .25cqw;
+  padding: .16cqw .45cqw;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: #fff200;
+}
+.ppt-body {
+  position: absolute;
+  left: 3.7%;
+  right: 4%;
+  top: 18.1%;
+  bottom: 9%;
+  overflow: hidden;
+  font-size: 2.2cqw;
+  line-height: 1;
+  text-align: left;
+}
+.ppt-body p { margin: 0 0 2.2cqw; }
+.ppt-photos {
+  position: absolute;
+  left: 2.9%;
+  right: 3.5%;
+  top: 25%;
+  bottom: 10.2%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3.15%;
+}
+.ppt-photo {
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 14.5%;
+  gap: 1.5%;
+}
+.ppt-photo img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+  border: .35cqw solid #d8d8d8;
+}
+.ppt-photo figcaption {
+  overflow: hidden;
+  font-size: 1.55cqw;
+  line-height: 1;
+}
+.ppt-photo figcaption span { display: block; }
+.preview-deck:fullscreen {
+  padding: 24px;
+  background: #111217;
+  overflow: auto;
+}
+.preview-deck:fullscreen .ppt-slide {
+  width: min(1200px, calc(100vw - 48px));
+  margin: auto;
 }
 .empty-preview {
   min-height: 490px;
@@ -343,5 +447,5 @@ dialog li { margin: 11px 0; color: #d7d9de; }
   .editor, .preview { padding: 16px; border-radius: 14px; }
   .manual-grid, .caption-grid { grid-template-columns: 1fr; }
   .main-actions { grid-template-columns: 1fr; }
-  #previewFrame { height: 68vh; }
+  .preview-deck { max-height: 70vh; }
 }

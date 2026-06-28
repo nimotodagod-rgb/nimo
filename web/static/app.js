@@ -6,7 +6,7 @@ const state = {
   photos: [],
   parsed: null,
   textVersion: "",
-  previewUrl: null,
+  previewUrls: [],
 };
 
 const fieldIds = {
@@ -135,6 +135,124 @@ function renderPhotos() {
   });
 }
 
+function element(tag, className = "", text = "") {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text) node.textContent = text;
+  return node;
+}
+
+function addSlideHeader(slide, title, data) {
+  const header = element("img", "ppt-header");
+  header.alt = "";
+  header.src = `/brand-header/${state.brand}.png`;
+  slide.append(header);
+  slide.append(element("div", "ppt-title", title));
+
+  const identification = element("div", "ppt-ident");
+  identification.append(
+    element("div", "", `${data.codigo || "cód."} – ${data.razao || "razão"}`),
+    element(
+      "div",
+      "",
+      `${data.regional || "SPO"} – ${data.microrregiao || "microrregião"}`
+    )
+  );
+  slide.append(identification);
+}
+
+function createTextSlide(title, values, data) {
+  const slide = element("article", "ppt-slide");
+  addSlideHeader(slide, title, data);
+  const body = element("div", "ppt-body");
+  [
+    ["VENDAS:", values.vendas],
+    ["MKT:", values.marketing],
+    ["CARTEIRA DE CLIENTES:", values.carteira],
+  ].forEach(([label, value]) => {
+    const row = element("p");
+    row.append(element("strong", "", label), document.createTextNode(` ${value}`));
+    body.append(row);
+  });
+  slide.append(body);
+  return slide;
+}
+
+function createPhotoSlide(data) {
+  const slide = element("article", "ppt-slide");
+  addSlideHeader(slide, "Imagens", data);
+  const grid = element("div", "ppt-photos");
+  state.photos.forEach((file, index) => {
+    const figure = element("figure", "ppt-photo");
+    const image = element("img");
+    image.alt = `Foto ${index + 1}`;
+    const url = URL.createObjectURL(file);
+    state.previewUrls.push(url);
+    image.src = url;
+    const caption = element("figcaption");
+    const values = data.fotos[index];
+    caption.append(
+      element("span", "", `Cliente: ${values.cliente || ""}`),
+      element("span", "", `Cidade: ${values.cidade || ""}`),
+      element("span", "", `Pares: ${values.pares || ""}`)
+    );
+    figure.append(image, caption);
+    grid.append(figure);
+  });
+  slide.append(grid);
+  return slide;
+}
+
+function validatePreviewData(data) {
+  const missing = [];
+  [
+    ["Ações — Vendas", data.acoes.vendas],
+    ["Ações — MKT", data.acoes.marketing],
+    ["Ações — Carteira", data.acoes.carteira],
+    ["Melhorias — Vendas", data.melhorias.vendas],
+    ["Melhorias — MKT", data.melhorias.marketing],
+    ["Melhorias — Carteira", data.melhorias.carteira],
+  ].forEach(([label, value]) => {
+    if (!value) missing.push(label);
+  });
+  if (missing.length) throw new Error(`Faltam informações: ${missing.join("; ")}`);
+}
+
+async function renderPreview({ automatic = false } = {}) {
+  if (state.photos.length !== 3) throw new Error("Selecione exatamente três fotos.");
+  await interpret(false);
+  const data = collectFields();
+  validatePreviewData(data);
+  state.previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  state.previewUrls = [];
+  const deck = $("#previewDeck");
+  deck.replaceChildren(
+    createTextSlide("Ações Bem Sucedidas", data.acoes, data),
+    createTextSlide("Pontos de Melhoria", data.melhorias, data),
+    createPhotoSlide(data)
+  );
+  deck.hidden = false;
+  $("#emptyPreview").style.display = "none";
+  $("#openPreview").hidden = false;
+  if (!automatic) {
+    $("#previewSection").scrollIntoView({ behavior: "smooth", block: "start" });
+    setMessage("Prévia atualizada.", "success");
+  }
+}
+
+let previewTimer = null;
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  if (state.photos.length !== 3 || !$("#quickText").value.trim()) return;
+  previewTimer = setTimeout(async () => {
+    try {
+      await renderPreview({ automatic: true });
+    } catch (_error) {
+      // A prévia aparece assim que todos os campos obrigatórios estiverem prontos.
+    }
+  }, 650);
+}
+
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -154,12 +272,12 @@ function filenameFromDisposition(response) {
   return basic?.[1] || "CONQUISTANDO.pptx";
 }
 
-async function processPowerPoint(mode) {
+async function processPowerPoint() {
   if (state.photos.length !== 3) throw new Error("Selecione exatamente três fotos.");
   await interpret(false);
   const form = new FormData();
   form.append("brand", state.brand);
-  form.append("mode", mode);
+  form.append("mode", "generate");
   form.append("text", $("#quickText").value);
   form.append("parsed_json", JSON.stringify(collectFields()));
   state.photos.forEach((photo) => form.append("photos", photo, photo.name));
@@ -174,26 +292,27 @@ async function processPowerPoint(mode) {
     throw new Error(result.error || "Não foi possível gerar o PowerPoint.");
   }
   const blob = await response.blob();
-  if (mode === "preview") {
-    if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
-    state.previewUrl = URL.createObjectURL(blob);
-    $("#previewFrame").src = state.previewUrl;
-    $("#previewFrame").style.display = "block";
-    $("#emptyPreview").style.display = "none";
-    $("#openPreview").href = state.previewUrl;
-    $("#previewSection").scrollIntoView({ behavior: "smooth", block: "start" });
-    setMessage("Prévia atualizada.", "success");
-  } else {
-    downloadBlob(blob, filenameFromDisposition(response));
-    setMessage("PowerPoint gerado. Confira seus downloads.", "success");
-  }
+  downloadBlob(blob, filenameFromDisposition(response));
+  setMessage("PowerPoint gerado. Confira seus downloads.", "success");
 }
 
-async function guardedProcess(mode) {
+async function guardedProcess() {
   setBusy(true);
   setMessage("");
   try {
-    await processPowerPoint(mode);
+    await processPowerPoint();
+  } catch (error) {
+    setMessage(error.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function guardedPreview() {
+  setBusy(true);
+  setMessage("");
+  try {
+    await renderPreview();
   } catch (error) {
     setMessage(error.message, "error");
   } finally {
@@ -210,12 +329,15 @@ $$(".brand-option").forEach((button) => {
   button.addEventListener("click", () => {
     state.brand = button.dataset.brand;
     $$(".brand-option").forEach((item) => item.classList.toggle("active", item === button));
+    schedulePreview();
   });
 });
 $("#quickText").addEventListener("input", () => {
   state.parsed = null;
   $("#parseStatus").textContent = "";
+  schedulePreview();
 });
+$("#manualEditor").addEventListener("input", schedulePreview);
 $("#parseButton").addEventListener("click", async () => {
   setMessage("");
   try {
@@ -236,9 +358,22 @@ $("#photos").addEventListener("change", (event) => {
   state.photos = files;
   renderPhotos();
   setMessage("Três fotos selecionadas.", "success");
+  schedulePreview();
 });
-$("#previewButton").addEventListener("click", () => guardedProcess("preview"));
-$("#generateButton").addEventListener("click", () => guardedProcess("generate"));
+$("#previewButton").addEventListener("click", guardedPreview);
+$("#generateButton").addEventListener("click", guardedProcess);
+$("#openPreview").addEventListener("click", async () => {
+  const deck = $("#previewDeck");
+  if (deck.requestFullscreen) {
+    try {
+      await deck.requestFullscreen();
+      return;
+    } catch (_error) {
+      // O Safari antigo pode bloquear a tela cheia.
+    }
+  }
+  deck.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 $("#installHelp").addEventListener("click", () => $("#installDialog").showModal());
 $("#closeInstall").addEventListener("click", () => $("#installDialog").close());
 if ("serviceWorker" in navigator) {

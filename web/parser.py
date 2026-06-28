@@ -31,6 +31,7 @@ def parse_quick_text(raw: str) -> tuple[dict, list[str]]:
     section = None
     current = None
     photo_index = None
+    photo_field_index = 0
     chunks: list[str] = []
 
     def flush() -> None:
@@ -52,6 +53,23 @@ def parse_quick_text(raw: str) -> tuple[dict, list[str]]:
             flush()
             section, current = None, None
             photo_index = int(photo_match.group(1)) - 1
+            photo_field_index = 0
+            inline_value = re.sub(
+                r"^\s*(?:foto|imagem)\s*[123]\s*[:\-]?\s*",
+                "",
+                line,
+                flags=re.IGNORECASE,
+            ).strip()
+            if inline_value:
+                values["fotos"][photo_index]["cliente"] = inline_value
+                photo_field_index = 1
+            continue
+
+        if clean in {"fotos", "imagens", "legendas das fotos"}:
+            flush()
+            section, current = None, None
+            photo_index = 0
+            photo_field_index = 0
             continue
 
         if "acoes bem sucedidas" in clean or "acoes bem-sucedidas" in clean:
@@ -68,9 +86,20 @@ def parse_quick_text(raw: str) -> tuple[dict, list[str]]:
                 r"^(cliente|cidade|pares)\s*[:\-]\s*(.*)$", line, re.IGNORECASE
             )
             if caption_match:
-                values["fotos"][photo_index][normalize(caption_match.group(1))] = (
-                    caption_match.group(2).strip()
+                field = normalize(caption_match.group(1))
+                values["fotos"][photo_index][field] = caption_match.group(2).strip()
+                photo_field_index = max(
+                    photo_field_index,
+                    {"cliente": 1, "cidade": 2, "pares": 3}[field],
                 )
+                continue
+            fields = ("cliente", "cidade", "pares")
+            if photo_field_index < 3:
+                values["fotos"][photo_index][fields[photo_field_index]] = line
+                photo_field_index += 1
+                if photo_field_index == 3 and photo_index < 2:
+                    photo_index += 1
+                    photo_field_index = 0
                 continue
 
         header_match = re.match(

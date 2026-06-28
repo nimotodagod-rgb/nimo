@@ -13,6 +13,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request, send_file
 from PIL import Image, ImageOps
 
+from ooxml_worker import build_pptx
 from parser import parse_quick_text, validate_parsed
 
 
@@ -119,6 +120,13 @@ def health():
     return jsonify({"ok": True})
 
 
+@app.get("/brand-header/<brand>.png")
+def brand_header(brand):
+    if brand not in BRAND_FILES:
+        return error("Marca inválida.", 404)
+    return send_file(BRAND_FILES[brand][1], mimetype="image/png", max_age=3600)
+
+
 @app.post("/api/parse")
 def parse_text():
     if not check_pin():
@@ -135,8 +143,8 @@ def process():
     brand = request.form.get("brand", "br-sport")
     if brand not in BRAND_FILES:
         return error("Marca inválida.")
-    mode = request.form.get("mode", "preview")
-    if mode not in {"preview", "generate"}:
+    mode = request.form.get("mode", "generate")
+    if mode != "generate":
         return error("Operação inválida.")
 
     raw = request.form.get("text", "")
@@ -181,33 +189,26 @@ def process():
         code = str(data.get("codigo", "")).strip() or "NOVO"
         safe_code = "".join(char if char.isalnum() or char in "-_" else "-" for char in code)
         output = job_dir / f"{brand_label}_CONQUISTANDO_{safe_code}.pptx"
-        preview_dir = job_dir / "preview"
         payload = {
             **data,
             "fotos": prepared,
             "template": str(template),
             "header_image": str(header_image),
             "output": str(output),
-            "preview_dir": str(preview_dir),
         }
         with generation_lock:
-            generated = run_worker(payload, job_dir)
+            build_pptx(payload)
 
-        if mode == "preview":
-            target = Path(generated["preview_pdf"])
-            content_type = "application/pdf"
-            download_name = "preview-conquistando.pdf"
-        else:
-            target = Path(generated["output"])
-            content_type = (
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
-            download_name = target.name
+        target = output
+        content_type = (
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        )
+        download_name = target.name
         content = target.read_bytes()
         return send_file(
             io.BytesIO(content),
             mimetype=content_type,
-            as_attachment=mode == "generate",
+            as_attachment=True,
             download_name=download_name,
             max_age=0,
         )

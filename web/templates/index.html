@@ -115,7 +115,11 @@ Pares"></textarea>
       <details class="security">
         <summary>Acesso do aplicativo</summary>
         <label>PIN<input id="pin" type="password" inputmode="numeric" autocomplete="current-password"></label>
-        <p>O PIN é salvo apenas neste aparelho.</p>
+        <div class="pin-actions">
+          <button id="confirmPin" type="button" class="secondary small">Confirmar PIN</button>
+          <span id="pinStatus"></span>
+        </div>
+        <p>Após confirmar, o PIN fica salvo apenas neste aparelho.</p>
       </details>
 
       <div class="main-actions">

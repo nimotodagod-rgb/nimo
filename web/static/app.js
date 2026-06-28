@@ -322,8 +322,25 @@ async function guardedPreview() {
 
 buildCaptionEditor();
 $("#pin").value = localStorage.getItem("conquistando-pin") || "";
-$("#pin").addEventListener("input", () => {
-  localStorage.setItem("conquistando-pin", $("#pin").value.trim());
+$("#confirmPin").addEventListener("click", async () => {
+  const pin = $("#pin").value.trim();
+  const status = $("#pinStatus");
+  status.textContent = "Verificando…";
+  status.className = "";
+  try {
+    const response = await fetch("/api/parse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-App-Pin": pin },
+      body: JSON.stringify({ text: "" }),
+    });
+    if (!response.ok) throw new Error("PIN incorreto");
+    localStorage.setItem("conquistando-pin", pin);
+    status.textContent = "PIN confirmado";
+    status.className = "success";
+  } catch (_error) {
+    status.textContent = "PIN incorreto";
+    status.className = "error";
+  }
 });
 $$(".brand-option").forEach((button) => {
   button.addEventListener("click", () => {

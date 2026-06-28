@@ -426,9 +426,9 @@ def build_pptx(payload: dict) -> str:
     replace_text_rows(
         action_shape,
         [
-            ("VENDAS:", payload["acoes"]["vendas"]),
-            ("MKT:", payload["acoes"]["marketing"]),
-            ("CARTEIRA DE CLIENTES:", payload["acoes"]["carteira"]),
+            ("1.", payload["acoes"]["vendas"]),
+            ("2.", payload["acoes"]["marketing"]),
+            ("3.", payload["acoes"]["carteira"]),
         ],
         size=2000,
         bold_labels=True,
@@ -437,9 +437,9 @@ def build_pptx(payload: dict) -> str:
     replace_text_rows(
         improvement_shape,
         [
-            ("VENDAS:", payload["melhorias"]["vendas"]),
-            ("MKT:", payload["melhorias"]["marketing"]),
-            ("CARTEIRA DE CLIENTES:", payload["melhorias"]["carteira"]),
+            ("1.", payload["melhorias"]["vendas"]),
+            ("2.", payload["melhorias"]["marketing"]),
+            ("3.", payload["melhorias"]["carteira"]),
         ],
         size=2000,
         bold_labels=True,

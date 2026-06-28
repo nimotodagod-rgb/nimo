@@ -432,9 +432,9 @@ function createTextSlide(title, values, data) {
   addSlideHeader(slide, title, data);
   const body = element("div", "ppt-body");
   [
-    ["VENDAS:", values.vendas],
-    ["MKT:", values.marketing],
-    ["CARTEIRA DE CLIENTES:", values.carteira],
+    ["1.", values.vendas],
+    ["2.", values.marketing],
+    ["3.", values.carteira],
   ].forEach(([label, value]) => {
     const row = element("p");
     row.append(element("strong", "", label), document.createTextNode(` ${value}`));

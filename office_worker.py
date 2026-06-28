@@ -81,7 +81,7 @@ def fill_body(shape, values):
     cursor.CharFontName = "Times New Roman"
     cursor.CharHeight = 20.0
     cursor.CharWeight = NORMAL
-    labels = ("VENDAS:", "MKT:", "CARTEIRA DE CLIENTES:")
+    labels = ("1.", "2.", "3.")
     for index, (label, value) in enumerate(zip(labels, values), start=1):
         cursor.CharWeight = BOLD
         text.insertString(cursor, label, False)

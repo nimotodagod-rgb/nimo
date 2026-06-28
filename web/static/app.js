@@ -3,9 +3,10 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 const state = {
   brand: "br-sport",
-  photos: [],
-  parsed: null,
-  textVersion: "",
+  drafts: {
+    "br-sport": { text: "", photos: [], parsed: null, textVersion: "", data: null, status: "" },
+    actvitta: { text: "", photos: [], parsed: null, textVersion: "", data: null, status: "" },
+  },
   previewUrls: [],
 };
 
@@ -27,6 +28,26 @@ const sectionIds = {
     carteira: "melhoriasCarteira",
   },
 };
+
+function activeDraft() {
+  return state.drafts[state.brand];
+}
+
+function emptyFields() {
+  return {
+    codigo: "",
+    razao: "",
+    regional: "SPO",
+    microrregiao: "",
+    acoes: { vendas: "", marketing: "", carteira: "" },
+    melhorias: { vendas: "", marketing: "", carteira: "" },
+    fotos: [
+      { cliente: "", cidade: "", pares: "" },
+      { cliente: "", cidade: "", pares: "" },
+      { cliente: "", cidade: "", pares: "" },
+    ],
+  };
+}
 
 function pinHeaders() {
   const pin = $("#pin").value.trim();
@@ -98,10 +119,39 @@ function collectFields() {
   return data;
 }
 
+function clearPreview() {
+  state.previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  state.previewUrls = [];
+  $("#previewDeck").replaceChildren();
+  $("#previewDeck").hidden = true;
+  $("#emptyPreview").style.display = "";
+  $("#openPreview").hidden = true;
+}
+
+function saveActiveDraft() {
+  const draft = activeDraft();
+  draft.text = $("#quickText").value;
+  draft.data = collectFields();
+}
+
+function loadActiveDraft() {
+  const draft = activeDraft();
+  $("#quickText").value = draft.text;
+  fillFields(draft.data || emptyFields());
+  $("#parseStatus").textContent = draft.status;
+  $("#photos").value = "";
+  $("#brandDataTitle").textContent =
+    state.brand === "br-sport" ? "Informações BR SPORT" : "Informações ACTVITTA";
+  renderPhotos();
+  clearPreview();
+  setMessage("");
+}
+
 async function interpret(force = false) {
+  const draft = activeDraft();
   const text = $("#quickText").value.trim();
   if (!text) throw new Error("Cole as informações antes de continuar.");
-  if (!force && state.parsed && state.textVersion === text) return state.parsed;
+  if (!force && draft.parsed && draft.textVersion === text) return draft.parsed;
   const response = await fetch("/api/parse", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...pinHeaders() },
@@ -109,20 +159,24 @@ async function interpret(force = false) {
   });
   const result = await response.json();
   if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível interpretar.");
-  state.parsed = result.data;
-  state.textVersion = text;
+  draft.parsed = result.data;
+  draft.textVersion = text;
+  draft.text = text;
+  draft.data = result.data;
   fillFields(result.data);
-  $("#parseStatus").textContent = result.missing.length
+  draft.status = result.missing.length
     ? `${result.missing.length} campo(s) precisam de revisão`
     : "Informações prontas";
+  $("#parseStatus").textContent = draft.status;
   if (result.missing.length) $("#manualEditor").open = true;
   return result.data;
 }
 
 function renderPhotos() {
+  const photos = activeDraft().photos;
   const slots = $$("#photoGrid .photo-slot");
   slots.forEach((slot, index) => {
-    const file = state.photos[index];
+    const file = photos[index];
     const number = `<b>${index + 1}</b>`;
     if (!file) {
       slot.innerHTML = `${number}<span>Nenhuma foto</span>`;
@@ -182,7 +236,7 @@ function createPhotoSlide(data) {
   const slide = element("article", "ppt-slide");
   addSlideHeader(slide, "Imagens", data);
   const grid = element("div", "ppt-photos");
-  state.photos.forEach((file, index) => {
+  activeDraft().photos.forEach((file, index) => {
     const figure = element("figure", "ppt-photo");
     const image = element("img");
     image.alt = `Foto ${index + 1}`;
@@ -219,9 +273,11 @@ function validatePreviewData(data) {
 }
 
 async function renderPreview({ automatic = false } = {}) {
-  if (state.photos.length !== 3) throw new Error("Selecione exatamente três fotos.");
+  const draft = activeDraft();
+  if (draft.photos.length !== 3) throw new Error("Selecione exatamente três fotos.");
   await interpret(false);
   const data = collectFields();
+  draft.data = data;
   validatePreviewData(data);
   state.previewUrls.forEach((url) => URL.revokeObjectURL(url));
   state.previewUrls = [];
@@ -243,7 +299,7 @@ async function renderPreview({ automatic = false } = {}) {
 let previewTimer = null;
 function schedulePreview() {
   clearTimeout(previewTimer);
-  if (state.photos.length !== 3 || !$("#quickText").value.trim()) return;
+  if (activeDraft().photos.length !== 3 || !$("#quickText").value.trim()) return;
   previewTimer = setTimeout(async () => {
     try {
       await renderPreview({ automatic: true });
@@ -273,14 +329,16 @@ function filenameFromDisposition(response) {
 }
 
 async function processPowerPoint() {
-  if (state.photos.length !== 3) throw new Error("Selecione exatamente três fotos.");
+  const draft = activeDraft();
+  if (draft.photos.length !== 3) throw new Error("Selecione exatamente três fotos.");
   await interpret(false);
+  draft.data = collectFields();
   const form = new FormData();
   form.append("brand", state.brand);
   form.append("mode", "generate");
   form.append("text", $("#quickText").value);
-  form.append("parsed_json", JSON.stringify(collectFields()));
-  state.photos.forEach((photo) => form.append("photos", photo, photo.name));
+  form.append("parsed_json", JSON.stringify(draft.data));
+  draft.photos.forEach((photo) => form.append("photos", photo, photo.name));
 
   const response = await fetch("/api/process", {
     method: "POST",
@@ -344,17 +402,27 @@ $("#confirmPin").addEventListener("click", async () => {
 });
 $$(".brand-option").forEach((button) => {
   button.addEventListener("click", () => {
+    if (button.dataset.brand === state.brand) return;
+    saveActiveDraft();
     state.brand = button.dataset.brand;
     $$(".brand-option").forEach((item) => item.classList.toggle("active", item === button));
+    loadActiveDraft();
     schedulePreview();
   });
 });
 $("#quickText").addEventListener("input", () => {
-  state.parsed = null;
+  const draft = activeDraft();
+  draft.text = $("#quickText").value;
+  draft.parsed = null;
+  draft.textVersion = "";
+  draft.status = "";
   $("#parseStatus").textContent = "";
   schedulePreview();
 });
-$("#manualEditor").addEventListener("input", schedulePreview);
+$("#manualEditor").addEventListener("input", () => {
+  activeDraft().data = collectFields();
+  schedulePreview();
+});
 $("#parseButton").addEventListener("click", async () => {
   setMessage("");
   try {
@@ -366,13 +434,14 @@ $("#parseButton").addEventListener("click", async () => {
 });
 $("#photos").addEventListener("change", (event) => {
   const files = [...event.target.files];
+  const draft = activeDraft();
   if (files.length !== 3) {
-    state.photos = [];
+    draft.photos = [];
     renderPhotos();
     setMessage("Selecione exatamente três fotos.", "error");
     return;
   }
-  state.photos = files;
+  draft.photos = files;
   renderPhotos();
   setMessage("Três fotos selecionadas.", "success");
   schedulePreview();
@@ -396,3 +465,4 @@ $("#closeInstall").addEventListener("click", () => $("#installDialog").close());
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("/static/sw.js"));
 }
+loadActiveDraft();

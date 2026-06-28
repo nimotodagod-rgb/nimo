@@ -267,28 +267,32 @@ def export_page(context, page, output_path):
 def connect_office(soffice_path):
     port = random.randint(20_000, 49_000)
     profile = Path(tempfile.mkdtemp(prefix="conquistando-lo-"))
+    log_path = profile / "soffice.log"
     accept = f"socket,host=127.0.0.1,port={port};urp;StarOffice.ComponentContext"
-    process = subprocess.Popen(
-        [
-            soffice_path,
-            f"-env:UserInstallation={file_url(profile)}",
-            "--headless",
-            "--nologo",
-            "--nodefault",
-            "--norestore",
-            "--nofirststartwizard",
-            f"--accept={accept}",
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=0x08000000 if os.name == "nt" else 0,
-    )
+    with log_path.open("w", encoding="utf-8", errors="replace") as log:
+        process = subprocess.Popen(
+            [
+                soffice_path,
+                f"-env:UserInstallation={file_url(profile)}",
+                "--headless",
+                "--nologo",
+                "--nodefault",
+                "--norestore",
+                "--nofirststartwizard",
+                f"--accept={accept}",
+            ],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            creationflags=0x08000000 if os.name == "nt" else 0,
+        )
     local_context = uno.getComponentContext()
     resolver = local_context.ServiceManager.createInstanceWithContext(
         "com.sun.star.bridge.UnoUrlResolver", local_context
     )
     last_error = None
-    for _ in range(80):
+    # A primeira inicialização no Render Free (CPU compartilhada) pode levar
+    # bem mais que os poucos segundos necessários em um computador local.
+    for _ in range(450):
         try:
             context = resolver.resolve(
                 f"uno:socket,host=127.0.0.1,port={port};urp;StarOffice.ComponentContext"
@@ -296,10 +300,18 @@ def connect_office(soffice_path):
             return process, profile, context
         except Exception as error:
             last_error = error
+            if process.poll() is not None:
+                break
             time.sleep(0.1)
-    process.terminate()
+    if process.poll() is None:
+        process.terminate()
+    try:
+        details = log_path.read_text(encoding="utf-8", errors="replace").strip()
+    except Exception:
+        details = ""
+    reason = details or str(last_error)
     shutil.rmtree(profile, ignore_errors=True)
-    raise RuntimeError(f"Não foi possível iniciar o LibreOffice: {last_error}")
+    raise RuntimeError(f"Não foi possível iniciar o LibreOffice: {reason}")
 
 
 def build(payload):

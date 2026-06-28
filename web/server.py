@@ -83,6 +83,7 @@ def crop_photo(source, destination: Path) -> None:
 
 def run_worker(payload: dict, job_dir: Path) -> dict:
     payload_file = job_dir / "job.json"
+    (job_dir / "home").mkdir(parents=True, exist_ok=True)
     payload_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     soffice, worker_python = libreoffice_paths()
     payload["soffice"] = soffice

@@ -181,6 +181,11 @@ label {
 }
 label input, label textarea { margin-top: 5px; }
 .manual-stack { display: grid; gap: 9px; padding: 0 15px 15px; }
+#manualEditor textarea {
+  min-height: 92px;
+  overflow-y: hidden;
+  resize: none;
+}
 details h3 {
   margin: 17px 15px 10px;
   color: var(--orange);
@@ -271,6 +276,19 @@ details h3 {
 }
 .draft-status.success { color: var(--green); }
 .draft-status.error { color: #ff7979; }
+.fixed-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 0 15px 15px;
+}
+#fixedHeaderStatus {
+  color: var(--muted);
+  font-size: 12px;
+}
+#fixedHeaderStatus.success { color: var(--green); }
+#fixedHeaderStatus.error { color: #ff7979; }
 .pin-actions {
   display: flex;
   align-items: center;
@@ -290,6 +308,7 @@ details h3 {
   margin-bottom: 14px;
 }
 .preview-head h2 { font-size: 20px; }
+.preview-viewer { position: relative; }
 .preview-deck {
   display: grid;
   gap: 14px;
@@ -332,20 +351,22 @@ details h3 {
 .ppt-ident {
   position: absolute;
   z-index: 3;
-  top: 2.2%;
+  top: 1.8%;
   right: 16.7%;
-  width: 22%;
+  width: 23%;
   font-family: Arial, sans-serif;
-  font-size: 1.22cqw;
+  font-size: 1.08cqw;
   text-align: center;
-  line-height: 1.02;
+  line-height: 1.15;
 }
 .ppt-ident div {
-  width: max-content;
-  max-width: 100%;
-  min-width: 74%;
-  margin: 0 auto .25cqw;
-  padding: .16cqw .45cqw;
+  width: 100%;
+  min-height: 2.05cqw;
+  margin: 0 0 .48cqw;
+  padding: .13cqw .38cqw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -393,15 +414,70 @@ details h3 {
   line-height: 1;
 }
 .ppt-photo figcaption span { display: block; }
-.preview-deck:fullscreen {
-  padding: 24px;
+.slide-nav, .slide-close, .slide-counter { display: none; }
+.preview-viewer.slide-show-mode {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  padding: 24px 70px;
   background: #111217;
-  overflow: auto;
+  place-content: center;
+  overflow: hidden;
 }
-.preview-deck:fullscreen .ppt-slide {
-  width: min(1200px, calc(100vw - 48px));
+.preview-viewer.slide-show-mode .preview-deck {
+  display: block;
+  width: min(1200px, calc(100vw - 150px));
+  max-height: none;
+  overflow: hidden;
+  padding: 0;
   margin: auto;
 }
+.preview-viewer.slide-show-mode .ppt-slide { display: none; }
+.preview-viewer.slide-show-mode .ppt-slide.active { display: block; }
+.preview-viewer.slide-show-mode .slide-nav {
+  position: fixed;
+  top: 50%;
+  z-index: 102;
+  width: 52px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 1px solid #454b58;
+  border-radius: 14px;
+  background: rgba(25,28,34,.88);
+  color: white;
+  font-size: 42px;
+}
+.preview-viewer.slide-show-mode .slide-nav.previous { left: 10px; }
+.preview-viewer.slide-show-mode .slide-nav.next { right: 10px; }
+.preview-viewer.slide-show-mode .slide-close {
+  position: fixed;
+  z-index: 103;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  background: rgba(25,28,34,.9);
+  color: white;
+  font-size: 25px;
+}
+.preview-viewer.slide-show-mode .slide-counter {
+  position: fixed;
+  z-index: 102;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 50%;
+  display: block;
+  transform: translateX(-50%);
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(25,28,34,.9);
+  color: white;
+  font-size: 13px;
+}
+body.slide-show-open { overflow: hidden; }
 .empty-preview {
   min-height: 490px;
   display: grid;
@@ -446,6 +522,12 @@ dialog {
 dialog::backdrop { background: rgba(0,0,0,.7); backdrop-filter: blur(4px); }
 dialog h2 { font-size: 21px; }
 dialog li { margin: 11px 0; color: #d7d9de; }
+.generate-options {
+  display: grid;
+  gap: 9px;
+  margin-top: 18px;
+}
+.generate-options button { padding: 13px; }
 .dialog-close {
   position: absolute;
   right: 12px;
@@ -468,4 +550,13 @@ dialog li { margin: 11px 0; color: #d7d9de; }
   .manual-grid, .caption-grid { grid-template-columns: 1fr; }
   .main-actions { grid-template-columns: 1fr; }
   .preview-deck { max-height: 70vh; }
+  .preview-viewer.slide-show-mode { padding: 56px 46px; }
+  .preview-viewer.slide-show-mode .preview-deck {
+    width: calc(100vw - 92px);
+  }
+  .preview-viewer.slide-show-mode .slide-nav {
+    width: 38px;
+    height: 60px;
+    font-size: 32px;
+  }
 }

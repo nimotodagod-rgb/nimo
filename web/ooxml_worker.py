@@ -205,7 +205,14 @@ def add_textbox(
     ET.SubElement(
         body,
         q("a", "bodyPr"),
-        {"anchor": "ctr", "lIns": "0", "rIns": "0", "tIns": "0", "bIns": "0"},
+        {
+            "anchor": "ctr",
+            "wrap": "none",
+            "lIns": "0",
+            "rIns": "0",
+            "tIns": "0",
+            "bIns": "0",
+        },
     )
     ET.SubElement(body, q("a", "lstStyle"))
     paragraph = ET.SubElement(body, q("a", "p"))

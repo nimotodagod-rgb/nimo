@@ -36,6 +36,21 @@
         <button class="brand-option" data-brand="actvitta">ACTVITTA</button>
       </div>
 
+      <details id="fixedHeaderSettings">
+        <summary>Dados fixos do cabeçalho — usados nas duas marcas</summary>
+        <div class="manual-grid">
+          <label>Código<input id="fixedCodigo"></label>
+          <label>Razão social<input id="fixedRazao"></label>
+          <label>Regional<input id="fixedRegional" value="SPO"></label>
+          <label>Microrregião<input id="fixedMicrorregiao"></label>
+        </div>
+        <div class="fixed-actions">
+          <button id="saveFixedHeader" type="button" class="secondary small">Salvar dados fixos</button>
+          <button id="clearFixedHeader" type="button" class="ghost small">Limpar</button>
+          <span id="fixedHeaderStatus"></span>
+        </div>
+      </details>
+
       <div class="step">
         <span>2</span>
         <div>
@@ -140,7 +155,13 @@ Pares"></textarea>
         </div>
         <button id="openPreview" class="ghost small" hidden>Abrir em tela cheia</button>
       </div>
-      <div id="previewDeck" class="preview-deck" hidden></div>
+      <div id="previewViewer" class="preview-viewer">
+        <button id="closeFullscreen" class="slide-close" type="button" aria-label="Fechar tela cheia">×</button>
+        <button id="previousSlide" class="slide-nav previous" type="button" aria-label="Slide anterior">‹</button>
+        <div id="previewDeck" class="preview-deck" hidden></div>
+        <button id="nextSlide" class="slide-nav next" type="button" aria-label="Próximo slide">›</button>
+        <span id="slideCounter" class="slide-counter" hidden>1 / 3</span>
+      </div>
       <div class="empty-preview" id="emptyPreview">
         <span>▣</span>
         <strong>A prévia aparecerá aqui</strong>
@@ -154,6 +175,17 @@ Pares"></textarea>
     <strong>Montando o PowerPoint…</strong>
     <span>Pode levar alguns segundos.</span>
   </div>
+
+  <dialog id="generateDialog">
+    <button class="dialog-close" id="closeGenerateDialog">×</button>
+    <h2>Qual PowerPoint deseja gerar?</h2>
+    <p>Os textos e as fotos salvos de cada marca serão usados automaticamente.</p>
+    <div class="generate-options">
+      <button type="button" class="secondary" data-generate-brand="br-sport">BR SPORT</button>
+      <button type="button" class="secondary" data-generate-brand="actvitta">ACTVITTA</button>
+      <button type="button" class="primary" data-generate-brand="all">Gerar os dois</button>
+    </div>
+  </dialog>
 
   <dialog id="installDialog">
     <button class="dialog-close" id="closeInstall">×</button>

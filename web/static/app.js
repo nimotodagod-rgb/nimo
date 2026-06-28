@@ -1,16 +1,19 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const DRAFT_STORAGE_KEY = "conquistando-drafts-v1";
+const FIXED_HEADER_KEY = "conquistando-fixed-header-v1";
 const PHOTO_DB_NAME = "conquistando-local";
 const PHOTO_STORE = "brand-photos";
 
 const state = {
   brand: "br-sport",
+  fixedHeader: { codigo: "", razao: "", regional: "SPO", microrregiao: "" },
   drafts: {
     "br-sport": { text: "", photos: [], parsed: null, textVersion: "", data: null, status: "" },
     actvitta: { text: "", photos: [], parsed: null, textVersion: "", data: null, status: "" },
   },
   previewUrls: [],
+  slideIndex: 0,
 };
 
 const fieldIds = {
@@ -50,6 +53,53 @@ function emptyFields() {
       { cliente: "", cidade: "", pares: "" },
     ],
   };
+}
+
+function setFixedHeaderStatus(text, kind = "") {
+  const status = $("#fixedHeaderStatus");
+  status.textContent = text;
+  status.className = kind;
+}
+
+function fillFixedHeaderForm() {
+  $("#fixedCodigo").value = state.fixedHeader.codigo;
+  $("#fixedRazao").value = state.fixedHeader.razao;
+  $("#fixedRegional").value = state.fixedHeader.regional || "SPO";
+  $("#fixedMicrorregiao").value = state.fixedHeader.microrregiao;
+}
+
+function restoreFixedHeader() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FIXED_HEADER_KEY) || "null");
+    if (!saved || typeof saved !== "object") return;
+    state.fixedHeader = {
+      codigo: String(saved.codigo || "").trim(),
+      razao: String(saved.razao || "").trim(),
+      regional: String(saved.regional || "SPO").trim(),
+      microrregiao: String(saved.microrregiao || "").trim(),
+    };
+  } catch (_error) {
+    localStorage.removeItem(FIXED_HEADER_KEY);
+  }
+}
+
+function applyFixedHeader(data) {
+  const target = data || emptyFields();
+  Object.keys(state.fixedHeader).forEach((key) => {
+    const value = String(state.fixedHeader[key] || "").trim();
+    if (value) target[key] = value;
+  });
+  return target;
+}
+
+function updateDraftsWithFixedHeader() {
+  Object.values(state.drafts).forEach((draft) => {
+    draft.data = applyFixedHeader(draft.data || emptyFields());
+    if (draft.parsed) draft.parsed = applyFixedHeader(draft.parsed);
+  });
+  persistDraftMetadata();
+  loadActiveDraft();
+  schedulePreview();
 }
 
 function setDraftStatus(text, kind = "") {
@@ -205,6 +255,15 @@ function buildCaptionEditor() {
   );
 }
 
+function autoResizeTextarea(textarea) {
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.max(textarea.scrollHeight, 92)}px`;
+}
+
+function resizeManualTextareas() {
+  $$("#manualEditor textarea").forEach(autoResizeTextarea);
+}
+
 function fillFields(data) {
   Object.entries(fieldIds).forEach(([key, id]) => {
     $(`#${id}`).value = data[key] || "";
@@ -220,6 +279,7 @@ function fillFields(data) {
     $(`#foto${index}Cidade`).value = photo.cidade || "";
     $(`#foto${index}Pares`).value = photo.pares || "";
   });
+  if ($("#manualEditor").open) requestAnimationFrame(resizeManualTextareas);
 }
 
 function collectFields() {
@@ -250,6 +310,19 @@ function clearPreview() {
   $("#previewDeck").hidden = true;
   $("#emptyPreview").style.display = "";
   $("#openPreview").hidden = true;
+  state.slideIndex = 0;
+  $("#slideCounter").hidden = true;
+}
+
+function showSlide(index) {
+  const slides = [...$("#previewDeck").children];
+  if (!slides.length) return;
+  state.slideIndex = (index + slides.length) % slides.length;
+  slides.forEach((slide, slideIndex) => {
+    slide.classList.toggle("active", slideIndex === state.slideIndex);
+  });
+  $("#slideCounter").textContent = `${state.slideIndex + 1} / ${slides.length}`;
+  $("#slideCounter").hidden = false;
 }
 
 function saveActiveDraft() {
@@ -266,7 +339,8 @@ function saveActiveDraft() {
 function loadActiveDraft() {
   const draft = activeDraft();
   $("#quickText").value = draft.text;
-  fillFields(draft.data || emptyFields());
+  draft.data = applyFixedHeader(draft.data || emptyFields());
+  fillFields(draft.data);
   $("#parseStatus").textContent = draft.status;
   $("#photos").value = "";
   $("#brandDataTitle").textContent =
@@ -295,6 +369,7 @@ async function interpret(force = false) {
   });
   const result = await response.json();
   if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível interpretar.");
+  result.data = applyFixedHeader(result.data);
   draft.parsed = result.data;
   draft.textVersion = text;
   draft.text = text;
@@ -425,6 +500,7 @@ async function renderPreview({ automatic = false } = {}) {
     createPhotoSlide(data)
   );
   deck.hidden = false;
+  showSlide(0);
   $("#emptyPreview").style.display = "none";
   $("#openPreview").hidden = false;
   if (!automatic) {
@@ -465,15 +541,47 @@ function filenameFromDisposition(response) {
   return basic?.[1] || "CONQUISTANDO.pptx";
 }
 
-async function processPowerPoint() {
-  const draft = activeDraft();
-  if (draft.photos.length !== 3) throw new Error("Selecione exatamente três fotos.");
-  await interpret(false);
-  draft.data = collectFields();
+function brandLabel(brand) {
+  return brand === "br-sport" ? "BR SPORT" : "ACTVITTA";
+}
+
+async function prepareBrandDraft(brand) {
+  if (brand === state.brand) saveActiveDraft();
+  const draft = state.drafts[brand];
+  const text = draft.text.trim();
+  if (!text) throw new Error(`${brandLabel(brand)}: cole as informações.`);
+  if (draft.photos.length !== 3) {
+    throw new Error(`${brandLabel(brand)}: selecione exatamente três fotos.`);
+  }
+  if (!draft.parsed || draft.textVersion !== text) {
+    const response = await fetch("/api/parse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...pinHeaders() },
+      body: JSON.stringify({ text }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(`${brandLabel(brand)}: ${result.error || "falha ao interpretar."}`);
+    }
+    draft.parsed = applyFixedHeader(result.data);
+    draft.data = draft.parsed;
+    draft.textVersion = text;
+    draft.status = result.missing.length
+      ? `${result.missing.length} campo(s) precisam de revisão`
+      : "Informações prontas";
+  } else {
+    draft.data = applyFixedHeader(draft.data || draft.parsed);
+  }
+  validatePreviewData(draft.data);
+  persistDraftMetadata();
+  return draft;
+}
+
+async function processBrandPowerPoint(brand, draft) {
   const form = new FormData();
-  form.append("brand", state.brand);
+  form.append("brand", brand);
   form.append("mode", "generate");
-  form.append("text", $("#quickText").value);
+  form.append("text", draft.text);
   form.append("parsed_json", JSON.stringify(draft.data));
   draft.photos.forEach((photo) => form.append("photos", photo, photo.name));
 
@@ -484,18 +592,32 @@ async function processPowerPoint() {
   });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
-    throw new Error(result.error || "Não foi possível gerar o PowerPoint.");
+    throw new Error(
+      `${brandLabel(brand)}: ${result.error || "não foi possível gerar o PowerPoint."}`
+    );
   }
   const blob = await response.blob();
   downloadBlob(blob, filenameFromDisposition(response));
-  setMessage("PowerPoint gerado. Confira seus downloads.", "success");
 }
 
-async function guardedProcess() {
+async function guardedGenerate(brands) {
   setBusy(true);
   setMessage("");
+  $("#generateDialog").close();
   try {
-    await processPowerPoint();
+    const prepared = [];
+    for (const brand of brands) {
+      prepared.push([brand, await prepareBrandDraft(brand)]);
+    }
+    for (const [brand, draft] of prepared) {
+      await processBrandPowerPoint(brand, draft);
+    }
+    setMessage(
+      brands.length === 2
+        ? "Os dois PowerPoints foram gerados. Confira seus downloads."
+        : `${brandLabel(brands[0])} gerado. Confira seus downloads.`,
+      "success"
+    );
   } catch (error) {
     setMessage(error.message, "error");
   } finally {
@@ -517,6 +639,45 @@ async function guardedPreview() {
 
 buildCaptionEditor();
 $("#pin").value = localStorage.getItem("conquistando-pin") || "";
+$("#saveFixedHeader").addEventListener("click", () => {
+  const fixed = {
+    codigo: $("#fixedCodigo").value.trim(),
+    razao: $("#fixedRazao").value.trim(),
+    regional: $("#fixedRegional").value.trim(),
+    microrregiao: $("#fixedMicrorregiao").value.trim(),
+  };
+  if (Object.values(fixed).some((value) => !value)) {
+    setFixedHeaderStatus("Preencha os quatro campos.", "error");
+    $("#fixedHeaderSettings").open = true;
+    return;
+  }
+  try {
+    state.fixedHeader = fixed;
+    localStorage.setItem(FIXED_HEADER_KEY, JSON.stringify(fixed));
+    updateDraftsWithFixedHeader();
+    setFixedHeaderStatus("Salvo para BR SPORT e ACTVITTA.", "success");
+  } catch (_error) {
+    setFixedHeaderStatus("Não foi possível salvar neste aparelho.", "error");
+  }
+});
+$("#clearFixedHeader").addEventListener("click", () => {
+  state.fixedHeader = { codigo: "", razao: "", regional: "SPO", microrregiao: "" };
+  localStorage.removeItem(FIXED_HEADER_KEY);
+  Object.values(state.drafts).forEach((draft) => {
+    if (draft.data) {
+      draft.data.codigo = "";
+      draft.data.razao = "";
+      draft.data.regional = "SPO";
+      draft.data.microrregiao = "";
+    }
+    draft.parsed = null;
+    draft.textVersion = "";
+  });
+  fillFixedHeaderForm();
+  persistDraftMetadata();
+  loadActiveDraft();
+  setFixedHeaderStatus("Dados fixos removidos.");
+});
 $("#confirmPin").addEventListener("click", async () => {
   const pin = $("#pin").value.trim();
   const status = $("#pinStatus");
@@ -557,10 +718,14 @@ $("#quickText").addEventListener("input", () => {
   queueMetadataSave();
   schedulePreview();
 });
-$("#manualEditor").addEventListener("input", () => {
+$("#manualEditor").addEventListener("input", (event) => {
+  if (event.target.matches("textarea")) autoResizeTextarea(event.target);
   activeDraft().data = collectFields();
   queueMetadataSave();
   schedulePreview();
+});
+$("#manualEditor").addEventListener("toggle", () => {
+  if ($("#manualEditor").open) requestAnimationFrame(resizeManualTextareas);
 });
 $("#parseButton").addEventListener("click", async () => {
   setMessage("");
@@ -600,19 +765,52 @@ $("#photos").addEventListener("change", async (event) => {
   }
 });
 $("#previewButton").addEventListener("click", guardedPreview);
-$("#generateButton").addEventListener("click", guardedProcess);
+$("#generateButton").addEventListener("click", () => $("#generateDialog").showModal());
+$("#closeGenerateDialog").addEventListener("click", () => $("#generateDialog").close());
+$$("[data-generate-brand]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const selected = button.dataset.generateBrand;
+    guardedGenerate(selected === "all" ? ["br-sport", "actvitta"] : [selected]);
+  });
+});
 $("#openPreview").addEventListener("click", async () => {
-  const deck = $("#previewDeck");
-  if (deck.requestFullscreen) {
+  const viewer = $("#previewViewer");
+  viewer.classList.add("slide-show-mode");
+  document.body.classList.add("slide-show-open");
+  showSlide(0);
+  const requestFullscreen = viewer.requestFullscreen || viewer.webkitRequestFullscreen;
+  if (requestFullscreen) {
     try {
-      await deck.requestFullscreen();
+      await requestFullscreen.call(viewer);
       return;
     } catch (_error) {
-      // O Safari antigo pode bloquear a tela cheia.
+      // O modo sobreposto permanece ativo quando o Safari não aceita Fullscreen.
     }
   }
-  deck.scrollIntoView({ behavior: "smooth", block: "start" });
 });
+$("#previousSlide").addEventListener("click", () => showSlide(state.slideIndex - 1));
+$("#nextSlide").addEventListener("click", () => showSlide(state.slideIndex + 1));
+$("#closeFullscreen").addEventListener("click", async () => {
+  const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+  const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+  if (fullscreenElement && exitFullscreen) {
+    try {
+      await exitFullscreen.call(document);
+    } catch (_error) {
+      // O modo visual também é encerrado abaixo.
+    }
+  }
+  $("#previewViewer").classList.remove("slide-show-mode");
+  document.body.classList.remove("slide-show-open");
+});
+function handleFullscreenExit() {
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    $("#previewViewer").classList.remove("slide-show-mode");
+    document.body.classList.remove("slide-show-open");
+  }
+}
+document.addEventListener("fullscreenchange", handleFullscreenExit);
+document.addEventListener("webkitfullscreenchange", handleFullscreenExit);
 $("#installHelp").addEventListener("click", () => $("#installDialog").showModal());
 $("#closeInstall").addEventListener("click", () => $("#installDialog").close());
 if ("serviceWorker" in navigator) {
@@ -632,6 +830,11 @@ document.addEventListener("visibilitychange", () => {
 });
 
 async function initializeDraftStorage() {
+  restoreFixedHeader();
+  fillFixedHeaderForm();
+  if (Object.values(state.fixedHeader).every((value) => String(value).trim())) {
+    setFixedHeaderStatus("Dados fixos carregados.", "success");
+  }
   restoreDraftMetadata();
   setDraftStatus("Restaurando o rascunho deste aparelho…");
   try {

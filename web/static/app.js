@@ -1,5 +1,8 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+const DRAFT_STORAGE_KEY = "conquistando-drafts-v1";
+const PHOTO_DB_NAME = "conquistando-local";
+const PHOTO_STORE = "brand-photos";
 
 const state = {
   brand: "br-sport",
@@ -47,6 +50,127 @@ function emptyFields() {
       { cliente: "", cidade: "", pares: "" },
     ],
   };
+}
+
+function setDraftStatus(text, kind = "") {
+  const status = $("#draftStatus");
+  status.textContent = text;
+  status.className = `draft-status ${kind}`.trim();
+}
+
+function persistDraftMetadata() {
+  const saved = {};
+  Object.entries(state.drafts).forEach(([brand, draft]) => {
+    saved[brand] = {
+      text: draft.text,
+      data: draft.data,
+      status: draft.status,
+      textVersion: draft.textVersion,
+    };
+  });
+  localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(saved));
+}
+
+function restoreDraftMetadata() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY) || "{}");
+    Object.keys(state.drafts).forEach((brand) => {
+      const source = saved[brand];
+      if (!source || typeof source !== "object") return;
+      const draft = state.drafts[brand];
+      draft.text = typeof source.text === "string" ? source.text : "";
+      draft.data = source.data && typeof source.data === "object" ? source.data : null;
+      draft.status = typeof source.status === "string" ? source.status : "";
+      draft.textVersion =
+        typeof source.textVersion === "string" ? source.textVersion : "";
+      draft.parsed =
+        draft.data && draft.textVersion === draft.text.trim() ? draft.data : null;
+    });
+  } catch (_error) {
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch (_storageError) {
+      // O aplicativo continua funcionando mesmo se o navegador bloquear armazenamento.
+    }
+  }
+}
+
+let metadataTimer = null;
+function queueMetadataSave() {
+  clearTimeout(metadataTimer);
+  setDraftStatus("Salvando rascunho…");
+  metadataTimer = setTimeout(() => {
+    try {
+      persistDraftMetadata();
+      setDraftStatus("Rascunho salvo neste aparelho.", "success");
+    } catch (_error) {
+      setDraftStatus("Não foi possível salvar o texto neste aparelho.", "error");
+    }
+  }, 180);
+}
+
+let photoDatabasePromise = null;
+function openPhotoDatabase() {
+  if (photoDatabasePromise) return photoDatabasePromise;
+  photoDatabasePromise = new Promise((resolve, reject) => {
+    if (!("indexedDB" in window)) {
+      reject(new Error("Armazenamento de fotos indisponível."));
+      return;
+    }
+    const request = indexedDB.open(PHOTO_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(PHOTO_STORE)) {
+        database.createObjectStore(PHOTO_STORE, { keyPath: "brand" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Falha ao abrir armazenamento."));
+  });
+  return photoDatabasePromise;
+}
+
+async function saveBrandPhotos(brand) {
+  const database = await openPhotoDatabase();
+  const photos = state.drafts[brand].photos.map((file, index) => ({
+    blob: file,
+    name: file.name || `foto-${index + 1}.jpg`,
+    type: file.type || "image/jpeg",
+    lastModified: file.lastModified || Date.now(),
+  }));
+  await new Promise((resolve, reject) => {
+    const transaction = database.transaction(PHOTO_STORE, "readwrite");
+    transaction.objectStore(PHOTO_STORE).put({ brand, photos });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () =>
+      reject(transaction.error || new Error("Falha ao salvar as fotos."));
+    transaction.onabort = () =>
+      reject(transaction.error || new Error("Salvamento das fotos cancelado."));
+  });
+}
+
+async function readBrandPhotos(brand) {
+  const database = await openPhotoDatabase();
+  const record = await new Promise((resolve, reject) => {
+    const transaction = database.transaction(PHOTO_STORE, "readonly");
+    const request = transaction.objectStore(PHOTO_STORE).get(brand);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error || new Error("Falha ao ler as fotos."));
+  });
+  if (!record?.photos?.length) return [];
+  return record.photos.map(
+    (item, index) =>
+      new File([item.blob], item.name || `foto-${index + 1}.jpg`, {
+        type: item.type || item.blob?.type || "image/jpeg",
+        lastModified: item.lastModified || Date.now(),
+      })
+  );
+}
+
+async function restoreAllPhotos() {
+  for (const brand of Object.keys(state.drafts)) {
+    state.drafts[brand].photos = await readBrandPhotos(brand);
+  }
 }
 
 function pinHeaders() {
@@ -132,6 +256,11 @@ function saveActiveDraft() {
   const draft = activeDraft();
   draft.text = $("#quickText").value;
   draft.data = collectFields();
+  try {
+    persistDraftMetadata();
+  } catch (_error) {
+    setDraftStatus("Não foi possível salvar o rascunho neste aparelho.", "error");
+  }
 }
 
 function loadActiveDraft() {
@@ -145,6 +274,13 @@ function loadActiveDraft() {
   renderPhotos();
   clearPreview();
   setMessage("");
+  const hasSavedContent = Boolean(draft.text || draft.data || draft.photos.length);
+  setDraftStatus(
+    hasSavedContent
+      ? "Rascunho desta marca restaurado."
+      : "Salvamento automático ativado para esta marca.",
+    hasSavedContent ? "success" : ""
+  );
 }
 
 async function interpret(force = false) {
@@ -168,6 +304,7 @@ async function interpret(force = false) {
     ? `${result.missing.length} campo(s) precisam de revisão`
     : "Informações prontas";
   $("#parseStatus").textContent = draft.status;
+  queueMetadataSave();
   if (result.missing.length) $("#manualEditor").open = true;
   return result.data;
 }
@@ -417,10 +554,12 @@ $("#quickText").addEventListener("input", () => {
   draft.textVersion = "";
   draft.status = "";
   $("#parseStatus").textContent = "";
+  queueMetadataSave();
   schedulePreview();
 });
 $("#manualEditor").addEventListener("input", () => {
   activeDraft().data = collectFields();
+  queueMetadataSave();
   schedulePreview();
 });
 $("#parseButton").addEventListener("click", async () => {
@@ -432,19 +571,33 @@ $("#parseButton").addEventListener("click", async () => {
     setMessage(error.message, "error");
   }
 });
-$("#photos").addEventListener("change", (event) => {
+$("#photos").addEventListener("change", async (event) => {
   const files = [...event.target.files];
+  const brand = state.brand;
   const draft = activeDraft();
   if (files.length !== 3) {
     draft.photos = [];
     renderPhotos();
     setMessage("Selecione exatamente três fotos.", "error");
+    try {
+      await saveBrandPhotos(brand);
+    } catch (_error) {
+      setDraftStatus("Não foi possível atualizar as fotos salvas.", "error");
+    }
     return;
   }
   draft.photos = files;
   renderPhotos();
-  setMessage("Três fotos selecionadas.", "success");
   schedulePreview();
+  setDraftStatus("Salvando as três fotos…");
+  try {
+    await saveBrandPhotos(brand);
+    setMessage("Três fotos selecionadas.", "success");
+    setDraftStatus("Texto e fotos salvos neste aparelho.", "success");
+  } catch (_error) {
+    setMessage("As fotos foram selecionadas, mas não puderam ser salvas.", "error");
+    setDraftStatus("Mantenha o aplicativo aberto até gerar o PowerPoint.", "error");
+  }
 });
 $("#previewButton").addEventListener("click", guardedPreview);
 $("#generateButton").addEventListener("click", guardedProcess);
@@ -465,4 +618,34 @@ $("#closeInstall").addEventListener("click", () => $("#installDialog").close());
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("/static/sw.js"));
 }
-loadActiveDraft();
+
+function saveBeforeLeaving() {
+  try {
+    saveActiveDraft();
+  } catch (_error) {
+    // A gravação normal por digitação continua sendo a principal proteção.
+  }
+}
+window.addEventListener("pagehide", saveBeforeLeaving);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") saveBeforeLeaving();
+});
+
+async function initializeDraftStorage() {
+  restoreDraftMetadata();
+  setDraftStatus("Restaurando o rascunho deste aparelho…");
+  try {
+    if (navigator.storage?.persist) await navigator.storage.persist();
+    await restoreAllPhotos();
+    loadActiveDraft();
+    schedulePreview();
+  } catch (_error) {
+    loadActiveDraft();
+    setDraftStatus(
+      "Textos restaurados. As fotos precisarão ser selecionadas novamente.",
+      "error"
+    );
+  }
+}
+
+initializeDraftStorage();

@@ -263,6 +263,14 @@ details h3 {
 .message { min-height: 20px; margin: 12px 0 0; color: var(--muted); font-size: 13px; }
 .message.error { color: #ff7979; }
 .message.success { color: var(--green); }
+.draft-status {
+  min-height: 18px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.draft-status.success { color: var(--green); }
+.draft-status.error { color: #ff7979; }
 .pin-actions {
   display: flex;
   align-items: center;

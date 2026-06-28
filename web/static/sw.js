@@ -1,4 +1,4 @@
-const CACHE = "conquistando-v7";
+const CACHE = "conquistando-v8";
 const STATIC = [
   "/",
   "/static/styles.css",

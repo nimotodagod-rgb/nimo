@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111217">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Conquistando">
+  <title>Editor Conquistando</title>
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/icon.png">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brandmark">C</div>
+    <div>
+      <p>CONQUISTANDO</p>
+      <h1>Editor de PowerPoint</h1>
+    </div>
+    <button id="installHelp" class="ghost small">Instalar no iPad</button>
+  </header>
+
+  <main>
+    <section class="editor">
+      <div class="step">
+        <span>1</span>
+        <div>
+          <h2>Escolha a versão</h2>
+          <p>O modelo e os logotipos são aplicados automaticamente.</p>
+        </div>
+      </div>
+      <div class="segmented" role="radiogroup" aria-label="Marca">
+        <button class="brand-option active" data-brand="br-sport">BR SPORT</button>
+        <button class="brand-option" data-brand="actvitta">ACTVITTA</button>
+      </div>
+
+      <div class="step">
+        <span>2</span>
+        <div>
+          <h2>Cole todas as informações</h2>
+          <p>Ações, melhorias, cabeçalho e legendas podem vir no mesmo texto.</p>
+        </div>
+      </div>
+      <textarea id="quickText" rows="16" spellcheck="true" placeholder="Código: 1234
+Razão: Nome do cliente
+Regional: SPO
+Microrregião: Marília
+
+AÇÕES BEM SUCEDIDAS
+VENDAS: ...
+MKT: ...
+CARTEIRA DE CLIENTES: ...
+
+PONTOS DE MELHORIA
+VENDAS: ...
+MKT: ...
+CARTEIRA DE CLIENTES: ...
+
+FOTO 1
+Cliente: ...
+Cidade: ...
+Pares: ..."></textarea>
+      <div class="inline-actions">
+        <button id="parseButton" class="secondary">Interpretar informações</button>
+        <span id="parseStatus"></span>
+      </div>
+
+      <details id="manualEditor">
+        <summary>Editar campos manualmente</summary>
+        <div class="manual-grid">
+          <label>Código<input id="codigo"></label>
+          <label>Razão<input id="razao"></label>
+          <label>Regional<input id="regional" value="SPO"></label>
+          <label>Microrregião<input id="microrregiao"></label>
+        </div>
+        <h3>Ações Bem Sucedidas</h3>
+        <div class="manual-stack">
+          <label>Vendas<textarea id="acoesVendas" rows="3"></textarea></label>
+          <label>Marketing<textarea id="acoesMarketing" rows="3"></textarea></label>
+          <label>Carteira de clientes<textarea id="acoesCarteira" rows="3"></textarea></label>
+        </div>
+        <h3>Pontos de Melhoria</h3>
+        <div class="manual-stack">
+          <label>Vendas<textarea id="melhoriasVendas" rows="3"></textarea></label>
+          <label>Marketing<textarea id="melhoriasMarketing" rows="3"></textarea></label>
+          <label>Carteira de clientes<textarea id="melhoriasCarteira" rows="3"></textarea></label>
+        </div>
+        <h3>Legendas das fotos</h3>
+        <div class="caption-grid" id="captionGrid"></div>
+      </details>
+
+      <div class="step">
+        <span>3</span>
+        <div>
+          <h2>Envie as três fotos</h2>
+          <p>Selecione as três juntas. Elas serão recortadas sem distorção.</p>
+        </div>
+      </div>
+      <label class="upload">
+        <input id="photos" type="file" accept="image/*" multiple>
+        <strong>Selecionar as 3 fotos</strong>
+        <small>PNG, JPG, WEBP ou imagem da Fototeca</small>
+      </label>
+      <div class="photo-grid" id="photoGrid">
+        <div class="photo-slot"><b>1</b><span>Nenhuma foto</span></div>
+        <div class="photo-slot"><b>2</b><span>Nenhuma foto</span></div>
+        <div class="photo-slot"><b>3</b><span>Nenhuma foto</span></div>
+      </div>
+
+      <details class="security">
+        <summary>Acesso do aplicativo</summary>
+        <label>PIN<input id="pin" type="password" inputmode="numeric" autocomplete="current-password"></label>
+        <p>O PIN é salvo apenas neste aparelho.</p>
+      </details>
+
+      <div class="main-actions">
+        <button id="previewButton" class="secondary large">Visualizar</button>
+        <button id="generateButton" class="primary large">Gerar PowerPoint</button>
+      </div>
+      <p id="message" class="message" aria-live="polite"></p>
+    </section>
+
+    <section class="preview" id="previewSection">
+      <div class="preview-head">
+        <div>
+          <p>PRÉVIA REAL</p>
+          <h2>PowerPoint final</h2>
+        </div>
+        <a id="openPreview" class="ghost small" target="_blank">Abrir em tela cheia</a>
+      </div>
+      <iframe id="previewFrame" title="Prévia do PowerPoint"></iframe>
+      <div class="empty-preview" id="emptyPreview">
+        <span>▣</span>
+        <strong>A prévia aparecerá aqui</strong>
+        <p>Cole as informações, envie as fotos e toque em Visualizar.</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="busy" id="busy" hidden>
+    <div class="spinner"></div>
+    <strong>Montando o PowerPoint…</strong>
+    <span>Pode levar alguns segundos.</span>
+  </div>
+
+  <dialog id="installDialog">
+    <button class="dialog-close" id="closeInstall">×</button>
+    <h2>Instalar no iPad</h2>
+    <ol>
+      <li>Abra esta página no Safari.</li>
+      <li>Toque no botão Compartilhar.</li>
+      <li>Escolha “Adicionar à Tela de Início”.</li>
+      <li>Ative “Abrir como App” e toque em Adicionar.</li>
+    </ol>
+  </dialog>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

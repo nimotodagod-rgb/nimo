@@ -368,7 +368,7 @@ def build(payload):
                 f"Cidade: {str(item.get('cidade', '')).strip()}\n"
                 f"Pares: {str(item.get('pares', '')).strip()}"
             )
-            style_text(captions[index], 14, LEFT)
+            style_text(captions[index], 12, LEFT)
             add_photo(document, page_images, frames[index], item.get("arquivo"), context)
 
         for page in (page_actions, page_improvements, page_images):

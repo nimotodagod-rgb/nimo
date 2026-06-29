@@ -477,7 +477,7 @@ def build_pptx(payload: dict) -> str:
                 ("Cidade:", item.get("cidade", "")),
                 ("Pares:", item.get("pares", "")),
             ],
-            size=1400,
+            size=1200,
             bold_labels=False,
         )
 

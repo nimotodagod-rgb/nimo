@@ -70,6 +70,16 @@ def expand_body_box(shape: ET.Element) -> None:
         ext.set("cy", "5000000")
 
 
+def expand_caption_box(shape: ET.Element) -> None:
+    """Mantém fonte 14 e aumenta a altura da legenda para evitar corte."""
+    xfrm = shape.find("./p:spPr/a:xfrm", NS)
+    if xfrm is None:
+        return
+    ext = xfrm.find("a:ext", NS)
+    if ext is not None:
+        ext.set("cy", str(max(int(ext.get("cy", "0")), 1_250_000)))
+
+
 def max_shape_id(root: ET.Element) -> int:
     values = [
         int(node.get("id", "0"))
@@ -470,6 +480,7 @@ def build_pptx(payload: dict) -> str:
 
     for index, caption in enumerate(captions):
         item = payload["fotos"][index]
+        expand_caption_box(caption)
         replace_text_rows(
             caption,
             [
@@ -477,7 +488,7 @@ def build_pptx(payload: dict) -> str:
                 ("Cidade:", item.get("cidade", "")),
                 ("Pares:", item.get("pares", "")),
             ],
-            size=1200,
+            size=1400,
             bold_labels=False,
         )
 

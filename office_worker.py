@@ -368,7 +368,14 @@ def build(payload):
                 f"Cidade: {str(item.get('cidade', '')).strip()}\n"
                 f"Pares: {str(item.get('pares', '')).strip()}"
             )
-            style_text(captions[index], 12, LEFT)
+            try:
+                captions[index].Size = size(
+                    captions[index].Size.Width,
+                    max(captions[index].Size.Height, 3500),
+                )
+            except Exception:
+                pass
+            style_text(captions[index], 14, LEFT)
             add_photo(document, page_images, frames[index], item.get("arquivo"), context)
 
         for page in (page_actions, page_improvements, page_images):

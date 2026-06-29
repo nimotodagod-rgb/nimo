@@ -420,8 +420,8 @@ details h3 {
   position: absolute;
   left: 2.9%;
   right: 3.5%;
-  top: 25.2%;
-  bottom: 14.4%;
+  top: 22.8%;
+  bottom: 7.6%;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 3.15%;
@@ -430,8 +430,8 @@ details h3 {
   min-width: 0;
   margin: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 6.4cqw;
-  gap: 1.6%;
+  grid-template-rows: minmax(0, 1fr) 8.5cqw;
+  gap: 1.2%;
 }
 .ppt-photo img {
   width: 100%;
@@ -441,8 +441,8 @@ details h3 {
   border: .35cqw solid #d8d8d8;
 }
 .ppt-photo figcaption {
-  overflow: hidden;
-  font-size: 1.12cqw;
+  overflow: visible;
+  font-size: 1.42cqw;
   line-height: 1.05;
   overflow-wrap: anywhere;
 }

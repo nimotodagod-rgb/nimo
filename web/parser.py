@@ -83,10 +83,14 @@ def parse_quick_text(raw: str) -> tuple[dict, list[str]]:
 
         if photo_index is not None:
             caption_match = re.match(
-                r"^(cliente|cidade|pares)\s*[:\-]\s*(.*)$", line, re.IGNORECASE
+                r"^(c[oó]digo/cliente|codigo/cliente|cliente|cidade|pares)\s*[:\-]\s*(.*)$",
+                line,
+                re.IGNORECASE,
             )
             if caption_match:
                 field = normalize(caption_match.group(1))
+                if field == "codigo/cliente":
+                    field = "cliente"
                 values["fotos"][photo_index][field] = caption_match.group(2).strip()
                 photo_field_index = max(
                     photo_field_index,

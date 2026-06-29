@@ -35,29 +35,40 @@ ACCENT_2 = "#D94FE8"
 SUCCESS = "#7BD88F"
 ERROR = "#FF7474"
 QUICK_TEMPLATE = """AÇÕES BEM SUCEDIDAS
-VENDAS: escreva aqui a primeira ação bem-sucedida
-MKT: escreva aqui a segunda ação bem-sucedida
-CARTEIRA DE CLIENTES: escreva aqui a terceira ação bem-sucedida
+VENDAS:
+
+
+MKT:
+
+
+CARTEIRA DE CLIENTES:
 
 PONTOS DE MELHORIA
-VENDAS: escreva aqui o primeiro ponto de melhoria
-MKT: escreva aqui o segundo ponto de melhoria
-CARTEIRA DE CLIENTES: escreva aqui o terceiro ponto de melhoria
+VENDAS:
+
+
+MKT:
+
+
+CARTEIRA DE CLIENTES:
 
 FOTO 1
-código/loja Nome do cliente
-Cidade
-Pares
+
+código/cliente:
+Cidade:
+Pares:
 
 FOTO 2
-código/loja Nome do cliente
-Cidade
-Pares
+
+código/cliente:
+Cidade:
+Pares:
 
 FOTO 3
-código/loja Nome do cliente
-Cidade
-Pares"""
+
+código/cliente:
+Cidade:
+Pares:"""
 
 
 def resource_path(*parts):
@@ -783,12 +794,14 @@ class Editor(tk.Tk):
 
             if photo_index is not None:
                 caption_match = re.match(
-                    r"^(cliente|cidade|pares)\s*[:\-]\s*(.*)$",
+                    r"^(c[oó]digo/cliente|codigo/cliente|cliente|cidade|pares)\s*[:\-]\s*(.*)$",
                     line,
                     re.IGNORECASE,
                 )
                 if caption_match:
                     field = self._clean_heading(caption_match.group(1))
+                    if field == "codigo/cliente":
+                        field = "cliente"
                     values["fotos"][photo_index][field] = caption_match.group(2).strip()
                     continue
 

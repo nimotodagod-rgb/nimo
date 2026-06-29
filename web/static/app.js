@@ -5,29 +5,40 @@ const FIXED_HEADER_KEY = "conquistando-fixed-header-v1";
 const PHOTO_DB_NAME = "conquistando-local";
 const PHOTO_STORE = "brand-photos";
 const QUICK_TEMPLATE = `AÇÕES BEM SUCEDIDAS
-VENDAS: escreva aqui a primeira ação bem-sucedida
-MKT: escreva aqui a segunda ação bem-sucedida
-CARTEIRA DE CLIENTES: escreva aqui a terceira ação bem-sucedida
+VENDAS:
+
+
+MKT:
+
+
+CARTEIRA DE CLIENTES:
 
 PONTOS DE MELHORIA
-VENDAS: escreva aqui o primeiro ponto de melhoria
-MKT: escreva aqui o segundo ponto de melhoria
-CARTEIRA DE CLIENTES: escreva aqui o terceiro ponto de melhoria
+VENDAS:
+
+
+MKT:
+
+
+CARTEIRA DE CLIENTES:
 
 FOTO 1
-código/loja Nome do cliente
-Cidade
-Pares
+
+código/cliente:
+Cidade:
+Pares:
 
 FOTO 2
-código/loja Nome do cliente
-Cidade
-Pares
+
+código/cliente:
+Cidade:
+Pares:
 
 FOTO 3
-código/loja Nome do cliente
-Cidade
-Pares`;
+
+código/cliente:
+Cidade:
+Pares:`;
 
 const state = {
   brand: "br-sport",

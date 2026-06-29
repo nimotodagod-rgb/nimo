@@ -1,8 +1,9 @@
-const CACHE = "conquistando-v12";
+const CACHE = "conquistando-v13";
 const STATIC = [
   "/",
   "/static/styles.css",
   "/static/app.js",
+  "/static/modelo-preenchimento.txt",
   "/static/icon.png",
   "/static/manifest.webmanifest"
 ];

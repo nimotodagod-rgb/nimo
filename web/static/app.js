@@ -4,6 +4,30 @@ const DRAFT_STORAGE_KEY = "conquistando-drafts-v1";
 const FIXED_HEADER_KEY = "conquistando-fixed-header-v1";
 const PHOTO_DB_NAME = "conquistando-local";
 const PHOTO_STORE = "brand-photos";
+const QUICK_TEMPLATE = `AÇÕES BEM SUCEDIDAS
+VENDAS: escreva aqui a primeira ação bem-sucedida
+MKT: escreva aqui a segunda ação bem-sucedida
+CARTEIRA DE CLIENTES: escreva aqui a terceira ação bem-sucedida
+
+PONTOS DE MELHORIA
+VENDAS: escreva aqui o primeiro ponto de melhoria
+MKT: escreva aqui o segundo ponto de melhoria
+CARTEIRA DE CLIENTES: escreva aqui o terceiro ponto de melhoria
+
+FOTO 1
+código/loja Nome do cliente
+Cidade
+Pares
+
+FOTO 2
+código/loja Nome do cliente
+Cidade
+Pares
+
+FOTO 3
+código/loja Nome do cliente
+Cidade
+Pares`;
 
 const state = {
   brand: "br-sport",
@@ -59,6 +83,29 @@ function setFixedHeaderStatus(text, kind = "") {
   const status = $("#fixedHeaderStatus");
   status.textContent = text;
   status.className = kind;
+}
+
+function setTemplateStatus(text, kind = "") {
+  const status = $("#templateStatus");
+  status.textContent = text;
+  status.className = kind;
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const helper = document.createElement("textarea");
+  helper.value = text;
+  helper.setAttribute("readonly", "");
+  helper.style.position = "fixed";
+  helper.style.left = "-9999px";
+  document.body.append(helper);
+  helper.select();
+  const ok = document.execCommand("copy");
+  helper.remove();
+  if (!ok) throw new Error("Não foi possível copiar automaticamente.");
 }
 
 function fillFixedHeaderForm() {
@@ -638,7 +685,28 @@ async function guardedPreview() {
 }
 
 buildCaptionEditor();
+$("#templateText").value = QUICK_TEMPLATE;
 $("#pin").value = localStorage.getItem("conquistando-pin") || "";
+$("#copyTemplate").addEventListener("click", async () => {
+  try {
+    await copyTextToClipboard(QUICK_TEMPLATE);
+    setTemplateStatus("Modelo copiado.", "success");
+  } catch (_error) {
+    $("#templateText").focus();
+    $("#templateText").select();
+    setTemplateStatus("Selecione e copie manualmente.", "error");
+  }
+});
+$("#insertTemplate").addEventListener("click", () => {
+  if ($("#quickText").value.trim()) {
+    setTemplateStatus("O campo já tem texto. Copie o modelo se quiser usar fora.", "error");
+    return;
+  }
+  $("#quickText").value = QUICK_TEMPLATE;
+  $("#quickText").dispatchEvent(new Event("input", { bubbles: true }));
+  $("#quickText").focus();
+  setTemplateStatus("Modelo colocado no campo.", "success");
+});
 $("#saveFixedHeader").addEventListener("click", () => {
   const fixed = {
     codigo: $("#fixedCodigo").value.trim(),

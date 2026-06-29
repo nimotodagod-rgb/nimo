@@ -34,6 +34,30 @@ ACCENT = "#FFB02E"
 ACCENT_2 = "#D94FE8"
 SUCCESS = "#7BD88F"
 ERROR = "#FF7474"
+QUICK_TEMPLATE = """AÇÕES BEM SUCEDIDAS
+VENDAS: escreva aqui a primeira ação bem-sucedida
+MKT: escreva aqui a segunda ação bem-sucedida
+CARTEIRA DE CLIENTES: escreva aqui a terceira ação bem-sucedida
+
+PONTOS DE MELHORIA
+VENDAS: escreva aqui o primeiro ponto de melhoria
+MKT: escreva aqui o segundo ponto de melhoria
+CARTEIRA DE CLIENTES: escreva aqui o terceiro ponto de melhoria
+
+FOTO 1
+código/loja Nome do cliente
+Cidade
+Pares
+
+FOTO 2
+código/loja Nome do cliente
+Cidade
+Pares
+
+FOTO 3
+código/loja Nome do cliente
+Cidade
+Pares"""
 
 
 def resource_path(*parts):
@@ -448,6 +472,32 @@ class Editor(tk.Tk):
             fg=MUTED,
             font=("Segoe UI", 8),
         ).pack(anchor="w", padx=15, pady=(0, 7))
+        template_row = tk.Frame(card, bg=CARD)
+        template_row.pack(fill="x", padx=15, pady=(0, 8))
+        tk.Button(
+            template_row,
+            text="COPIAR MODELO",
+            command=self.copy_quick_template,
+            bg=INPUT,
+            fg=TEXT,
+            activebackground=LINE,
+            activeforeground=TEXT,
+            relief="flat",
+            cursor="hand2",
+            font=("Segoe UI Semibold", 8),
+        ).pack(side="left", fill="x", expand=True, padx=(0, 5), ipady=7)
+        tk.Button(
+            template_row,
+            text="INSERIR MODELO",
+            command=self.insert_quick_template,
+            bg=INPUT,
+            fg=TEXT,
+            activebackground=LINE,
+            activeforeground=TEXT,
+            relief="flat",
+            cursor="hand2",
+            font=("Segoe UI Semibold", 8),
+        ).pack(side="left", fill="x", expand=True, padx=(5, 0), ipady=7)
         self.quick_text = tk.Text(
             card,
             height=12,
@@ -658,6 +708,24 @@ class Editor(tk.Tk):
             .replace("ú", "u")
         )
         return re.sub(r"\s+", " ", value).strip()
+
+    def copy_quick_template(self):
+        self.clipboard_clear()
+        self.clipboard_append(QUICK_TEMPLATE)
+        self.update()
+        messagebox.showinfo(APP_NAME, "Modelo copiado. Cole no Bloco de Notas, WhatsApp ou e-mail.")
+
+    def insert_quick_template(self):
+        current = self.quick_text.get("1.0", "end-1c").strip()
+        if current and not messagebox.askyesno(
+            APP_NAME,
+            "O campo já tem texto. Deseja substituir pelo modelo?",
+        ):
+            return
+        self.quick_text.delete("1.0", "end")
+        self.quick_text.insert("1.0", QUICK_TEMPLATE)
+        self.quick_text.focus_set()
+        self.mark_dirty()
 
     def apply_quick_text(self):
         raw = self.quick_text.get("1.0", "end-1c").strip()

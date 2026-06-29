@@ -58,6 +58,22 @@
           <p>Cada marca guarda seu próprio texto e suas próprias três fotos.</p>
         </div>
       </div>
+      <details id="templateHelper">
+        <summary>Modelo rápido para copiar e preencher</summary>
+        <div class="template-helper-body">
+          <p>
+            Use este modelo no Notas do iPad, WhatsApp, e-mail ou Bloco de Notas do PC.
+            Depois cole tudo no campo abaixo.
+          </p>
+          <textarea id="templateText" rows="18" readonly></textarea>
+          <div class="template-actions">
+            <button id="copyTemplate" type="button" class="secondary small">Copiar modelo</button>
+            <button id="insertTemplate" type="button" class="ghost small">Colocar no campo</button>
+            <a class="ghost small" href="/static/modelo-preenchimento.txt" download>Baixar .txt para PC</a>
+            <span id="templateStatus"></span>
+          </div>
+        </div>
+      </details>
       <textarea id="quickText" rows="16" spellcheck="true" placeholder="AÇÕES BEM SUCEDIDAS
 VENDAS: ...
 MKT: ...

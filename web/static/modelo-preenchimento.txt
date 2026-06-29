@@ -1,0 +1,24 @@
+AÇÕES BEM SUCEDIDAS
+VENDAS: escreva aqui a primeira ação bem-sucedida
+MKT: escreva aqui a segunda ação bem-sucedida
+CARTEIRA DE CLIENTES: escreva aqui a terceira ação bem-sucedida
+
+PONTOS DE MELHORIA
+VENDAS: escreva aqui o primeiro ponto de melhoria
+MKT: escreva aqui o segundo ponto de melhoria
+CARTEIRA DE CLIENTES: escreva aqui o terceiro ponto de melhoria
+
+FOTO 1
+código/loja Nome do cliente
+Cidade
+Pares
+
+FOTO 2
+código/loja Nome do cliente
+Cidade
+Pares
+
+FOTO 3
+código/loja Nome do cliente
+Cidade
+Pares

@@ -1,4 +1,4 @@
-const CACHE = "conquistando-v16";
+const CACHE = "conquistando-v17";
 const STATIC = [
   "/",
   "/static/styles.css",
@@ -9,7 +9,6 @@ const STATIC = [
 ];
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(STATIC)));
-  self.skipWaiting();
 });
 self.addEventListener("activate", (event) => {
   event.waitUntil(
@@ -18,6 +17,9 @@ self.addEventListener("activate", (event) => {
     )
   );
   self.clients.claim();
+});
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || new URL(event.request.url).pathname.startsWith("/api/")) return;

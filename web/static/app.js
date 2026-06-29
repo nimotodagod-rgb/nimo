@@ -892,9 +892,6 @@ document.addEventListener("fullscreenchange", handleFullscreenExit);
 document.addEventListener("webkitfullscreenchange", handleFullscreenExit);
 $("#installHelp").addEventListener("click", () => $("#installDialog").showModal());
 $("#closeInstall").addEventListener("click", () => $("#installDialog").close());
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("/static/sw.js"));
-}
 
 function saveBeforeLeaving() {
   try {
@@ -903,6 +900,59 @@ function saveBeforeLeaving() {
     // A gravação normal por digitação continua sendo a principal proteção.
   }
 }
+
+function showUpdateNotice(registration) {
+  const notice = $("#updateNotice");
+  notice.hidden = false;
+  $("#updateNow").onclick = () => {
+    saveBeforeLeaving();
+    if (registration?.waiting) {
+      registration.waiting.postMessage({ type: "SKIP_WAITING" });
+    } else {
+      window.location.reload();
+    }
+  };
+}
+
+function watchServiceWorker(registration) {
+  if (registration.waiting && navigator.serviceWorker.controller) {
+    showUpdateNotice(registration);
+  }
+  registration.addEventListener("updatefound", () => {
+    const worker = registration.installing;
+    if (!worker) return;
+    worker.addEventListener("statechange", () => {
+      if (worker.state === "installed" && navigator.serviceWorker.controller) {
+        showUpdateNotice(registration);
+      }
+    });
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") registration.update();
+  });
+  setInterval(() => registration.update(), 30 * 60 * 1000);
+}
+
+function setupServiceWorkerUpdates() {
+  if (!("serviceWorker" in navigator)) return;
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+  window.addEventListener("load", async () => {
+    try {
+      const registration = await navigator.serviceWorker.register("/static/sw.js");
+      watchServiceWorker(registration);
+      registration.update();
+    } catch (_error) {
+      // O app continua funcionando sem cache offline.
+    }
+  });
+}
+
+setupServiceWorkerUpdates();
 window.addEventListener("pagehide", saveBeforeLeaving);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") saveBeforeLeaving();

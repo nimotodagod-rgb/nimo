@@ -544,6 +544,35 @@ body.slide-show-open { overflow: hidden; }
   animation: spin .8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+.update-notice {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(460px, calc(100% - 28px));
+  padding: 11px 12px;
+  border: 1px solid rgba(255,176,46,.45);
+  border-radius: 14px;
+  background: rgba(24,26,32,.96);
+  color: var(--text);
+  box-shadow: 0 12px 36px rgba(0,0,0,.42);
+  transform: translateX(-50%);
+}
+.update-notice[hidden] { display: none; }
+.update-notice span {
+  flex: 1;
+  font-size: 13px;
+  color: #fff4d4;
+}
+.update-notice button {
+  padding: 9px 11px;
+  background: var(--orange);
+  color: #171717;
+  font-size: 12px;
+}
 dialog {
   width: min(460px, calc(100% - 32px));
   border: 1px solid var(--line);

@@ -52,6 +52,8 @@ const state = {
   draftsInitialized: false,
   paymentRequired: false,
   paymentUrl: "",
+  accountRazao: "",
+  accountRazaoLocked: false,
 };
 
 const fieldIds = {
@@ -147,11 +149,39 @@ function setSubscriptionState(session = {}) {
   $$("#manualEditor textarea, #manualEditor input, #fixedHeaderSettings input").forEach((field) => {
     field.readOnly = state.paymentRequired;
   });
+  if (state.accountRazaoLocked) $("#fixedRazao").readOnly = true;
   $("#photos").disabled = false;
   $$(".single-photo-input").forEach((field) => {
     field.disabled = false;
   });
   $("#appShell").classList.toggle("subscription-locked", state.paymentRequired);
+}
+
+function syncAccountRazao(session = {}) {
+  state.accountRazao = String(session.razao_social || "").trim();
+  state.accountRazaoLocked = Boolean(session.razao_locked && state.accountRazao);
+  if (state.accountRazaoLocked) {
+    state.fixedHeader.razao = state.accountRazao;
+    localStorage.setItem(FIXED_HEADER_KEY, JSON.stringify(state.fixedHeader));
+  }
+  fillFixedHeaderForm();
+  $("#fixedRazao").readOnly = state.paymentRequired || state.accountRazaoLocked;
+  $("#fixedRazao").classList.toggle("locked-field", state.accountRazaoLocked);
+  const note = $("#fixedRazaoNote");
+  if (note) {
+    note.textContent = state.accountRazaoLocked
+      ? "Razão social travada nesta conta. Para trocar, solicite ao suporte."
+      : "A primeira razão social salva ficará fixa nesta conta. Depois, só o suporte poderá trocar.";
+  }
+  if (state.accountRazaoLocked && state.draftsInitialized) {
+    Object.values(state.drafts).forEach((draft) => {
+      if (draft.data) draft.data.razao = state.accountRazao;
+      if (draft.parsed) draft.parsed.razao = state.accountRazao;
+    });
+    persistDraftMetadata();
+    loadActiveDraft();
+    schedulePreview();
+  }
 }
 
 function showSubscriptionRequired() {
@@ -198,6 +228,7 @@ function setAuthenticated(session = {}) {
       : session.name || session.email || "Usuário liberado";
   setTopPayment(session);
   setSubscriptionState(session);
+  syncAccountRazao(session);
   setLoginStatus("");
 }
 
@@ -208,6 +239,7 @@ function setLocked(session = {}) {
   $("#sessionChip").hidden = true;
   setTopPayment({});
   setSubscriptionState({});
+  syncAccountRazao({});
   setPaymentLink(session.payment_url || "");
 }
 
@@ -298,6 +330,9 @@ function applyFixedHeader(data) {
     const value = String(state.fixedHeader[key] || "").trim();
     if (value) target[key] = value;
   });
+  if (state.accountRazaoLocked && state.accountRazao) {
+    target.razao = state.accountRazao;
+  }
   return target;
 }
 
@@ -1051,11 +1086,12 @@ $("#quickText").addEventListener("keydown", (event) => {
     toggleBoldSelection();
   }
 });
-$("#saveFixedHeader").addEventListener("click", () => {
+$("#saveFixedHeader").addEventListener("click", async () => {
   if (requiresSubscription()) return;
-  const fixed = {
+  const requestedRazao = $("#fixedRazao").value.trim();
+  let fixed = {
     codigo: $("#fixedCodigo").value.trim(),
-    razao: $("#fixedRazao").value.trim(),
+    razao: state.accountRazaoLocked ? state.accountRazao : requestedRazao,
     regional: $("#fixedRegional").value.trim(),
     microrregiao: $("#fixedMicrorregiao").value.trim(),
   };
@@ -1065,26 +1101,50 @@ $("#saveFixedHeader").addEventListener("click", () => {
     return;
   }
   try {
+    if (!state.accountRazaoLocked) {
+      const response = await fetch("/api/account-razao", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...pinHeaders() },
+        body: JSON.stringify({ razao_social: requestedRazao }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || "Não foi possível travar a razão social.");
+      }
+      state.accountRazao = String(result.razao_social || requestedRazao).trim();
+      state.accountRazaoLocked = Boolean(result.razao_locked && state.accountRazao);
+      fixed = { ...fixed, razao: state.accountRazao || requestedRazao };
+      syncAccountRazao({
+        razao_social: state.accountRazao,
+        razao_locked: state.accountRazaoLocked,
+        payment_required: state.paymentRequired,
+      });
+    }
     state.fixedHeader = fixed;
     localStorage.setItem(FIXED_HEADER_KEY, JSON.stringify(fixed));
     updateDraftsWithFixedHeader();
-    setFixedHeaderStatus("Representante salvo para BR SPORT e ACTVITTA.", "success");
+    setFixedHeaderStatus("Representante salvo. Razão social fixa nesta conta.", "success");
     setMessage(
-      "Representante confirmado. Revise código, razão social, regional e microrregião antes de gerar o PowerPoint.",
+      "Representante confirmado. Código, regional e microrregião continuam livres. A razão social só pode ser trocada pelo suporte.",
       "success"
     );
-  } catch (_error) {
-    setFixedHeaderStatus("Não foi possível salvar neste aparelho.", "error");
+  } catch (error) {
+    setFixedHeaderStatus(error.message || "Não foi possível salvar neste aparelho.", "error");
   }
 });
 $("#clearFixedHeader").addEventListener("click", () => {
   if (requiresSubscription()) return;
-  state.fixedHeader = { codigo: "", razao: "", regional: "", microrregiao: "" };
+  state.fixedHeader = {
+    codigo: "",
+    razao: state.accountRazaoLocked ? state.accountRazao : "",
+    regional: "",
+    microrregiao: "",
+  };
   localStorage.removeItem(FIXED_HEADER_KEY);
   Object.values(state.drafts).forEach((draft) => {
     if (draft.data) {
       draft.data.codigo = "";
-      draft.data.razao = "";
+      draft.data.razao = state.accountRazaoLocked ? state.accountRazao : "";
       draft.data.regional = "";
       draft.data.microrregiao = "";
     }
@@ -1092,9 +1152,18 @@ $("#clearFixedHeader").addEventListener("click", () => {
     draft.textVersion = "";
   });
   fillFixedHeaderForm();
+  syncAccountRazao({
+    razao_social: state.accountRazao,
+    razao_locked: state.accountRazaoLocked,
+    payment_required: state.paymentRequired,
+  });
   persistDraftMetadata();
   loadActiveDraft();
-  setFixedHeaderStatus("Representante removido.");
+  setFixedHeaderStatus(
+    state.accountRazaoLocked
+      ? "Dados livres removidos. A razão social fixa foi mantida."
+      : "Representante removido."
+  );
 });
 $("#confirmPin").addEventListener("click", async () => {
   const pin = $("#pin").value.trim();
@@ -1254,6 +1323,9 @@ $("#powerPointImport").addEventListener("change", async (event) => {
       regional: String(result.data?.regional || "").trim(),
       microrregiao: String(result.data?.microrregiao || "").trim(),
     };
+    if (state.accountRazaoLocked && state.accountRazao) {
+      importedHeader.razao = state.accountRazao;
+    }
     if (Object.values(importedHeader).every(Boolean)) {
       state.fixedHeader = importedHeader;
       localStorage.setItem(FIXED_HEADER_KEY, JSON.stringify(importedHeader));

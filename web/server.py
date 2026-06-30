@@ -155,9 +155,27 @@ def registered_users() -> dict[str, dict]:
                 "password": stored,
                 "active": bool(item.get("active", False)),
                 "name": str(item.get("name", normalized)).strip() or normalized,
+                "razao_social": str(item.get("razao_social", "")).strip(),
                 "registered": True,
             }
     return users
+
+
+def raw_registered_users() -> dict[str, dict]:
+    path = accounts_file()
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if isinstance(raw, list):
+        return {
+            str(item.get("email", "")).strip().casefold(): item
+            for item in raw
+            if isinstance(item, dict) and str(item.get("email", "")).strip()
+        }
+    return raw if isinstance(raw, dict) else {}
 
 
 def save_registered_user(email: str, name: str, password: str) -> None:
@@ -177,9 +195,43 @@ def save_registered_user(email: str, name: str, password: str) -> None:
         path.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def save_account_razao(email: str, razao: str) -> str:
+    normalized_email = str(email or "").strip().casefold()
+    normalized_razao = str(razao or "").strip()
+    if not normalized_email or not normalized_razao:
+        raise ValueError("Informe a razao social.")
+    path = accounts_file()
+    with accounts_lock:
+        users = raw_registered_users()
+        user = users.get(normalized_email)
+        if not isinstance(user, dict):
+            user = {
+                "email": normalized_email,
+                "name": str(session.get("name", normalized_email)).strip() or normalized_email,
+                "active": False,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        current = str(user.get("razao_social", "")).strip()
+        if current and current != normalized_razao:
+            return current
+        user["razao_social"] = current or normalized_razao
+        users[normalized_email] = user
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
+        return user["razao_social"]
+
+
 def known_users() -> dict[str, dict]:
+    raw_registered = raw_registered_users()
     users = registered_users()
-    users.update(configured_users())
+    configured = configured_users()
+    for email, user in configured.items():
+        extra = raw_registered.get(email)
+        if isinstance(extra, dict):
+            razao = str(extra.get("razao_social", "")).strip()
+            if razao:
+                user = {**user, "razao_social": razao}
+        users[email] = user
     return users
 
 
@@ -190,12 +242,15 @@ def start_user_session(email: str, user: dict) -> dict:
     session["access"] = role
     session["email"] = email
     session["name"] = user.get("name") or email
+    session["razao_social"] = str(user.get("razao_social", "")).strip()
     return {
         "ok": True,
         "has_access": True,
         "role": role,
         "email": email,
         "name": session["name"],
+        "razao_social": session["razao_social"],
+        "razao_locked": bool(session["razao_social"]),
         "payment_required": not active,
         "payment_url": "" if active else payment_link_for(email, session["name"]),
     }
@@ -222,6 +277,7 @@ def configured_users() -> dict[str, dict]:
                         "password": password,
                         "active": bool(item.get("active", True)),
                         "name": str(item.get("name", email)).strip() or email,
+                        "razao_social": str(item.get("razao_social", "")).strip(),
                     }
         except json.JSONDecodeError:
             app.logger.warning("APP_USERS_JSON inválido.")
@@ -348,6 +404,7 @@ def current_session():
     role = session.get("access", "")
     paid_user = role in {"dev", "user"}
     payment_required = role == "trial"
+    razao_social = str(session.get("razao_social", "")).strip()
     return jsonify(
         {
             "ok": True,
@@ -355,10 +412,39 @@ def current_session():
             "role": role,
             "email": session.get("email", ""),
             "name": session.get("name", ""),
+            "razao_social": razao_social,
+            "razao_locked": bool(razao_social),
             "payment_required": payment_required,
             "payment_url": "" if paid_user else payment_link_for(session.get("email", ""), session.get("name", "")),
         }
     )
+
+
+@app.post("/api/account-razao")
+def account_razao():
+    if not has_access():
+        return access_error()
+    if not has_paid_access():
+        return payment_required_error()
+    if session.get("access") == "dev":
+        body = request.get_json(silent=True) or {}
+        razao = str(body.get("razao_social", body.get("razao", ""))).strip()
+        session["razao_social"] = razao
+        return jsonify({"ok": True, "razao_social": razao, "razao_locked": bool(razao)})
+
+    body = request.get_json(silent=True) or {}
+    requested = str(body.get("razao_social", body.get("razao", ""))).strip()
+    current = str(session.get("razao_social", "")).strip()
+    if current:
+        return jsonify({"ok": True, "razao_social": current, "razao_locked": True})
+    try:
+        saved = save_account_razao(session.get("email", ""), requested)
+    except LookupError:
+        return error("Nao foi possivel travar a razao social desta conta. Fale com o suporte.", 404)
+    except ValueError as exc:
+        return error(str(exc))
+    session["razao_social"] = saved
+    return jsonify({"ok": True, "razao_social": saved, "razao_locked": True})
 
 
 @app.post("/api/login")
@@ -411,6 +497,7 @@ def signup():
     session["access"] = "trial"
     session["email"] = email
     session["name"] = name
+    session["razao_social"] = ""
     return jsonify(
         {
             "ok": True,
@@ -515,6 +602,9 @@ def process():
             return error("Os dados interpretados são inválidos.")
     else:
         data, _ = parse_quick_text(raw)
+    locked_razao = str(session.get("razao_social", "")).strip()
+    if locked_razao:
+        data["razao"] = locked_razao
     missing = validate_parsed(data)
     if missing:
         return error("Faltam informações: " + "; ".join(missing))

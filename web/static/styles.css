@@ -622,6 +622,17 @@ details h3 {
 }
 #fixedHeaderStatus.success { color: var(--green); }
 #fixedHeaderStatus.error { color: #ff7979; }
+.field-note {
+  grid-column: 1 / -1;
+  margin: -4px 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.locked-field {
+  border-color: rgba(143, 233, 169, .55) !important;
+  background: rgba(143, 233, 169, .06) !important;
+}
 .pin-actions {
   display: flex;
   align-items: center;

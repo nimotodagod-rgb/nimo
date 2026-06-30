@@ -383,6 +383,27 @@ function showSlide(index) {
   $("#slideCounter").hidden = false;
 }
 
+function updateSlideShowSize() {
+  const viewer = $("#previewViewer");
+  if (!viewer.classList.contains("slide-show-mode")) return;
+  const compact = window.innerWidth <= 600;
+  const horizontalReserve = compact ? 92 : 150;
+  const verticalReserve = compact ? 128 : 76;
+  const widthByScreen = window.innerWidth - horizontalReserve;
+  const widthByHeight = (window.innerHeight - verticalReserve) * (16 / 9);
+  const width = Math.max(280, Math.min(1200, widthByScreen, widthByHeight));
+  viewer.style.setProperty("--slide-show-width", `${Math.floor(width)}px`);
+}
+
+function closeSlideShowMode() {
+  const viewer = $("#previewViewer");
+  viewer.classList.remove("slide-show-mode");
+  viewer.style.removeProperty("--slide-show-width");
+  document.body.classList.remove("slide-show-open");
+  window.removeEventListener("resize", updateSlideShowSize);
+  window.removeEventListener("orientationchange", updateSlideShowSize);
+}
+
 function saveActiveDraft() {
   const draft = activeDraft();
   draft.text = $("#quickText").value;
@@ -857,10 +878,15 @@ $("#openPreview").addEventListener("click", async () => {
   viewer.classList.add("slide-show-mode");
   document.body.classList.add("slide-show-open");
   showSlide(0);
+  updateSlideShowSize();
+  window.addEventListener("resize", updateSlideShowSize);
+  window.addEventListener("orientationchange", updateSlideShowSize);
+  requestAnimationFrame(updateSlideShowSize);
   const requestFullscreen = viewer.requestFullscreen || viewer.webkitRequestFullscreen;
   if (requestFullscreen) {
     try {
       await requestFullscreen.call(viewer);
+      requestAnimationFrame(updateSlideShowSize);
       return;
     } catch (_error) {
       // O modo sobreposto permanece ativo quando o Safari não aceita Fullscreen.
@@ -879,13 +905,13 @@ $("#closeFullscreen").addEventListener("click", async () => {
       // O modo visual também é encerrado abaixo.
     }
   }
-  $("#previewViewer").classList.remove("slide-show-mode");
-  document.body.classList.remove("slide-show-open");
+  closeSlideShowMode();
 });
 function handleFullscreenExit() {
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    $("#previewViewer").classList.remove("slide-show-mode");
-    document.body.classList.remove("slide-show-open");
+    closeSlideShowMode();
+  } else {
+    updateSlideShowSize();
   }
 }
 document.addEventListener("fullscreenchange", handleFullscreenExit);

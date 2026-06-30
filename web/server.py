@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
@@ -39,6 +40,9 @@ BRAND_FILES = {
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.environ.get("APP_SECRET_KEY", os.environ.get("SECRET_KEY", "conquistando-dev-secret"))
 app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
+    days=int(os.environ.get("APP_SESSION_DAYS", "30"))
+)
 generation_lock = threading.Lock()
 
 
@@ -263,6 +267,7 @@ def login():
     if user and not hmac.compare_digest(password, user["password"]):
         return error("E-mail ou senha incorretos.", 401)
     if user and user.get("active"):
+        session.permanent = True
         session["access"] = "user"
         session["email"] = email
         session["name"] = user.get("name") or email
@@ -299,6 +304,7 @@ def signup():
         return error("Esta conta já está liberada. Use Entrar.", 409)
 
     link = payment_link_for(email, name)
+    session.permanent = True
     session["access"] = "trial"
     session["email"] = email
     session["name"] = name
@@ -322,6 +328,7 @@ def dev_pin():
     pin = str(body.get("pin", "")).strip()
     if not check_pin_value(pin):
         return error("PIN incorreto.", 401)
+    session.permanent = True
     session["access"] = "dev"
     session["email"] = ""
     session["name"] = "Desenvolvedor"

@@ -10,7 +10,7 @@
   <title>Editor Conquistando</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icon.png">
-  <link rel="stylesheet" href="/static/styles.css?v=21">
+  <link rel="stylesheet" href="/static/styles.css?v=22">
 </head>
 <body>
   <header class="topbar">
@@ -41,7 +41,7 @@
         <div class="manual-grid">
           <label>Código<input id="fixedCodigo"></label>
           <label>Razão social<input id="fixedRazao"></label>
-          <label>Regional<input id="fixedRegional" value="SPO"></label>
+          <label>Regional<input id="fixedRegional"></label>
           <label>Microrregião<input id="fixedMicrorregiao"></label>
         </div>
         <div class="fixed-actions">
@@ -121,7 +121,7 @@ Pares:"></textarea>
         <summary>Editar campos manualmente</summary>
         <input id="codigo" type="hidden">
         <input id="razao" type="hidden">
-        <input id="regional" type="hidden" value="SPO">
+        <input id="regional" type="hidden">
         <input id="microrregiao" type="hidden">
         <h3>Ações Bem Sucedidas</h3>
         <div class="manual-stack">
@@ -146,6 +146,10 @@ Pares:"></textarea>
           <p>Selecione as três juntas ou toque nos quadros 1, 2 e 3 para trocar uma por vez.</p>
         </div>
       </div>
+      <p class="photo-tip">
+        Dica: a foto preenche o quadro e pode cortar as bordas. Tire com a equipe/produto no centro,
+        com folga em cima e nas laterais, sem ficar muito longe da câmera.
+      </p>
       <label class="upload">
         <input id="photos" type="file" accept="image/*" multiple>
         <strong>Selecionar as 3 fotos</strong>
@@ -243,6 +247,6 @@ Pares:"></textarea>
     </ol>
   </dialog>
 
-  <script src="/static/app.js?v=21" defer></script>
+  <script src="/static/app.js?v=22" defer></script>
 </body>
 </html>

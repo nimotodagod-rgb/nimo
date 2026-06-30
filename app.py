@@ -145,7 +145,7 @@ class Editor(tk.Tk):
         self.brand = tk.StringVar(value="br-sport")
         self.codigo = tk.StringVar()
         self.razao = tk.StringVar()
-        self.regional = tk.StringVar(value="SPO")
+        self.regional = tk.StringVar()
         self.microrregiao = tk.StringVar()
         self.text_fields = {}
         self.photos = []
@@ -327,10 +327,12 @@ class Editor(tk.Tk):
         card = self._card(parent, "3. Envie as três fotos")
         tk.Label(
             card,
-            text="As imagens serão recortadas e encaixadas automaticamente nos quadrados.",
+            text="A foto preenche o quadro e pode cortar bordas. Deixe equipe/produto no centro, com folga e sem ficar muito longe.",
             bg=CARD,
             fg=ACCENT,
             font=("Segoe UI", 8),
+            wraplength=430,
+            justify="left",
         ).pack(anchor="w", padx=15, pady=(0, 6))
         tk.Button(
             card,

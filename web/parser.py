@@ -14,7 +14,7 @@ def empty_result() -> dict:
     return {
         "codigo": "",
         "razao": "",
-        "regional": "SPO",
+        "regional": "",
         "microrregiao": "",
         "acoes": {"vendas": "", "marketing": "", "carteira": ""},
         "melhorias": {"vendas": "", "marketing": "", "carteira": ""},

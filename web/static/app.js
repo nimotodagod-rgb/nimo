@@ -42,7 +42,7 @@ Pares:`;
 
 const state = {
   brand: "br-sport",
-  fixedHeader: { codigo: "", razao: "", regional: "SPO", microrregiao: "" },
+  fixedHeader: { codigo: "", razao: "", regional: "", microrregiao: "" },
   drafts: {
     "br-sport": { text: "", photos: [], parsed: null, textVersion: "", data: null, status: "" },
     actvitta: { text: "", photos: [], parsed: null, textVersion: "", data: null, status: "" },
@@ -78,7 +78,7 @@ function emptyFields() {
   return {
     codigo: "",
     razao: "",
-    regional: "SPO",
+    regional: "",
     microrregiao: "",
     acoes: { vendas: "", marketing: "", carteira: "" },
     melhorias: { vendas: "", marketing: "", carteira: "" },
@@ -122,7 +122,7 @@ async function copyTextToClipboard(text) {
 function fillFixedHeaderForm() {
   $("#fixedCodigo").value = state.fixedHeader.codigo;
   $("#fixedRazao").value = state.fixedHeader.razao;
-  $("#fixedRegional").value = state.fixedHeader.regional || "SPO";
+  $("#fixedRegional").value = state.fixedHeader.regional;
   $("#fixedMicrorregiao").value = state.fixedHeader.microrregiao;
 }
 
@@ -133,7 +133,7 @@ function restoreFixedHeader() {
     state.fixedHeader = {
       codigo: String(saved.codigo || "").trim(),
       razao: String(saved.razao || "").trim(),
-      regional: String(saved.regional || "SPO").trim(),
+      regional: String(saved.regional || "").trim(),
       microrregiao: String(saved.microrregiao || "").trim(),
     };
   } catch (_error) {
@@ -529,7 +529,7 @@ function addSlideHeader(slide, title, data) {
     element(
       "div",
       "",
-      `${data.regional || "SPO"} – ${data.microrregiao || "microrregião"}`
+      `${data.regional || "regional"} – ${data.microrregiao || "microrregião"}`
     )
   );
   slide.append(identification);
@@ -579,6 +579,14 @@ function createPhotoSlide(data) {
 
 function validatePreviewData(data) {
   const missing = [];
+  [
+    ["Representante — Código", data.codigo],
+    ["Representante — Razão social", data.razao],
+    ["Representante — Regional", data.regional],
+    ["Representante — Microrregião", data.microrregiao],
+  ].forEach(([label, value]) => {
+    if (!value) missing.push(label);
+  });
   [
     ["Ações — Vendas", data.acoes.vendas],
     ["Ações — MKT", data.acoes.marketing],
@@ -794,13 +802,13 @@ $("#saveFixedHeader").addEventListener("click", () => {
   }
 });
 $("#clearFixedHeader").addEventListener("click", () => {
-  state.fixedHeader = { codigo: "", razao: "", regional: "SPO", microrregiao: "" };
+  state.fixedHeader = { codigo: "", razao: "", regional: "", microrregiao: "" };
   localStorage.removeItem(FIXED_HEADER_KEY);
   Object.values(state.drafts).forEach((draft) => {
     if (draft.data) {
       draft.data.codigo = "";
       draft.data.razao = "";
-      draft.data.regional = "SPO";
+      draft.data.regional = "";
       draft.data.microrregiao = "";
     }
     draft.parsed = null;

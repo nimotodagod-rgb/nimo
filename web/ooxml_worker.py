@@ -322,7 +322,7 @@ def add_identification_header(root: ET.Element, data: dict) -> None:
     )
     code = str(data.get("codigo", "")).strip() or "cód."
     reason = str(data.get("razao", "")).strip() or "razão"
-    regional = str(data.get("regional", "")).strip() or "SPO"
+    regional = str(data.get("regional", "")).strip() or "regional"
     micro = str(data.get("microrregiao", "")).strip() or "microrregião"
     next_id = add_textbox(
         sp_tree,

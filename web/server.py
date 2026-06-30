@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import io
+import hashlib
 import hmac
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
-from datetime import timedelta
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
@@ -45,6 +47,7 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
     days=int(os.environ.get("APP_SESSION_DAYS", "30"))
 )
 generation_lock = threading.Lock()
+accounts_lock = threading.Lock()
 
 
 def libreoffice_paths() -> tuple[str, str]:
@@ -95,6 +98,107 @@ def payment_link_for(email: str = "", name: str = "") -> str:
     current = parts.query
     joined = f"{current}&{extra}" if current else extra
     return urlunsplit((parts.scheme, parts.netloc, parts.path, joined, parts.fragment))
+
+
+def accounts_file() -> Path:
+    configured = os.environ.get("APP_ACCOUNTS_FILE", "").strip()
+    if configured:
+        return Path(configured)
+    data_dir = os.environ.get("APP_DATA_DIR", os.environ.get("RENDER_DISK_PATH", "")).strip()
+    base = Path(data_dir) if data_dir else PROJECT_DIR / "runtime"
+    return base / "users.json"
+
+
+def password_hash(password: str) -> str:
+    salt = secrets.token_hex(16)
+    rounds = 150_000
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt), rounds).hex()
+    return f"pbkdf2_sha256${rounds}${salt}${digest}"
+
+
+def password_matches(password: str, stored: str) -> bool:
+    if stored.startswith("pbkdf2_sha256$"):
+        try:
+            _, rounds, salt, digest = stored.split("$", 3)
+            calculated = hashlib.pbkdf2_hmac(
+                "sha256",
+                password.encode("utf-8"),
+                bytes.fromhex(salt),
+                int(rounds),
+            ).hex()
+            return hmac.compare_digest(calculated, digest)
+        except (ValueError, TypeError):
+            return False
+    return hmac.compare_digest(password, stored)
+
+
+def registered_users() -> dict[str, dict]:
+    path = accounts_file()
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        app.logger.warning("Arquivo de contas invÃ¡lido ou indisponÃ­vel.")
+        return {}
+    if isinstance(raw, list):
+        raw = {str(item.get("email", "")).casefold(): item for item in raw if isinstance(item, dict)}
+    users: dict[str, dict] = {}
+    items = raw.items() if isinstance(raw, dict) else []
+    for email, item in items:
+        if not isinstance(item, dict):
+            continue
+        normalized = str(item.get("email", email)).strip().casefold()
+        stored = str(item.get("password_hash", item.get("password", "")))
+        if normalized and stored:
+            users[normalized] = {
+                "password": stored,
+                "active": bool(item.get("active", False)),
+                "name": str(item.get("name", normalized)).strip() or normalized,
+                "registered": True,
+            }
+    return users
+
+
+def save_registered_user(email: str, name: str, password: str) -> None:
+    path = accounts_file()
+    with accounts_lock:
+        users = registered_users()
+        if email in users:
+            raise ValueError("Esta conta jÃ¡ existe. Use Entrar.")
+        users[email] = {
+            "email": email,
+            "name": name,
+            "password_hash": password_hash(password),
+            "active": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def known_users() -> dict[str, dict]:
+    users = registered_users()
+    users.update(configured_users())
+    return users
+
+
+def start_user_session(email: str, user: dict) -> dict:
+    active = bool(user.get("active"))
+    role = "user" if active else "trial"
+    session.permanent = True
+    session["access"] = role
+    session["email"] = email
+    session["name"] = user.get("name") or email
+    return {
+        "ok": True,
+        "has_access": True,
+        "role": role,
+        "email": email,
+        "name": session["name"],
+        "payment_required": not active,
+        "payment_url": "" if active else payment_link_for(email, session["name"]),
+    }
 
 
 def configured_users() -> dict[str, dict]:
@@ -265,25 +369,13 @@ def login():
     if not email or not password:
         return error("Preencha e-mail e senha.")
 
-    users = configured_users()
+    users = known_users()
     user = users.get(email)
-    if user and not hmac.compare_digest(password, user["password"]):
+    if not user:
+        return error("Conta nao encontrada. Crie uma conta para entrar.", 404)
+    if not password_matches(password, user["password"]):
         return error("E-mail ou senha incorretos.", 401)
-    if user and user.get("active"):
-        session.permanent = True
-        session["access"] = "user"
-        session["email"] = email
-        session["name"] = user.get("name") or email
-        return jsonify({"ok": True, "has_access": True, "email": email, "name": session["name"]})
-
-    return jsonify(
-        {
-            "ok": False,
-            "requires_payment": True,
-            "payment_url": payment_link_for(email),
-            "error": "Acesso ainda não liberado. Faça o pagamento para ativar.",
-        }
-    ), 402
+    return jsonify(start_user_session(email, user))
 
 
 @app.post("/api/signup")
@@ -302,9 +394,14 @@ def signup():
     if len(password) < 6:
         return error("Use uma senha com pelo menos 6 caracteres.")
 
-    user = configured_users().get(email)
-    if user and user.get("active"):
-        return error("Esta conta já está liberada. Use Entrar.", 409)
+    if known_users().get(email):
+        return error("Esta conta ja existe. Use Entrar.", 409)
+    try:
+        save_registered_user(email, name, password)
+    except ValueError as exc:
+        return error(str(exc), 409)
+    except OSError:
+        return error("Nao foi possivel salvar a conta agora. Tente novamente.", 500)
 
     link = payment_link_for(email, name)
     session.permanent = True

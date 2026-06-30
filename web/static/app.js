@@ -181,8 +181,8 @@ function setAuthMode(mode) {
     ? "Crie sua conta no Editor Conquistando"
     : "Entre para usar o Editor Conquistando";
   $("#authCopy").textContent = signup
-    ? "Informe seus dados para iniciar o cadastro. Depois você será enviado para o pagamento."
-    : "O editor comercial usa login. Se o acesso ainda não estiver liberado, você será enviado para o pagamento.";
+    ? "Informe seus dados para criar a conta. A assinatura fica disponível depois no topo."
+    : "Entre normalmente. Se a assinatura estiver pendente, o editor mostra o aviso antes de editar ou gerar.";
   setLoginStatus("");
   setPaymentLink("");
 }
@@ -1132,14 +1132,13 @@ $("#loginForm").addEventListener("submit", async (event) => {
     });
     const result = await response.json();
     if (response.status === 402 && result.payment_url) {
-      setLoginStatus("Acesso ainda não liberado. Indo para o pagamento…", "error");
+      setLoginStatus("Assinatura pendente. Use o botão Assinar para liberar o editor.", "error");
       setPaymentLink(result.payment_url);
-      window.location.href = result.payment_url;
       return;
     }
     if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível entrar.");
     $("#loginPassword").value = "";
-    setLoginStatus("Acesso liberado.", "success");
+    setLoginStatus(result.payment_required ? "Conta acessada. Assine para liberar o editor." : "Acesso liberado.", "success");
     await refreshAccess();
   } catch (error) {
     setLoginStatus(error.message, "error");

@@ -132,7 +132,7 @@ function setTopPayment(session = {}) {
     button.removeAttribute("href");
     return;
   }
-  button.textContent = url ? "Pagamento" : "Pagamento pendente";
+  button.textContent = "Assinar";
   if (url) {
     button.href = url;
   } else {
@@ -195,8 +195,6 @@ function setAuthenticated(session = {}) {
   $("#sessionLabel").textContent =
     session.role === "dev"
       ? "Desenvolvedor"
-      : session.payment_required
-        ? "Conta pendente"
       : session.name || session.email || "Usuário liberado";
   setTopPayment(session);
   setSubscriptionState(session);

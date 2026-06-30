@@ -123,6 +123,7 @@ function setPaymentLink(url = "") {
 function setAuthenticated(session = {}) {
   $("#authPanel").hidden = true;
   $("#appShell").hidden = false;
+  $("#appShell").classList.remove("auth-locked");
   $("#sessionChip").hidden = false;
   $("#sessionLabel").textContent =
     session.role === "dev"
@@ -133,7 +134,8 @@ function setAuthenticated(session = {}) {
 
 function setLocked(session = {}) {
   $("#authPanel").hidden = false;
-  $("#appShell").hidden = true;
+  $("#appShell").hidden = false;
+  $("#appShell").classList.add("auth-locked");
   $("#sessionChip").hidden = true;
   setPaymentLink(session.payment_url || "");
 }
@@ -168,9 +170,9 @@ async function refreshAccess() {
     if (!session.has_access && (await unlockWithSavedPin())) {
       session = await readSession();
     }
+    await initializeEditorOnce();
     if (session.has_access) {
       setAuthenticated(session);
-      await initializeEditorOnce();
     } else {
       setLocked(session);
     }
@@ -951,7 +953,7 @@ $("#logoutButton").addEventListener("click", async () => {
   localStorage.removeItem("conquistando-pin");
   $("#pin").value = "";
   state.draftsInitialized = false;
-  $("#appShell").hidden = true;
+  $("#appShell").classList.add("auth-locked");
   $("#sessionChip").hidden = true;
   await refreshAccess();
 });

@@ -10,7 +10,7 @@
   <title>Editor Conquistando</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icon.png">
-  <link rel="stylesheet" href="/static/styles.css?v=23">
+  <link rel="stylesheet" href="/static/styles.css?v=24">
 </head>
 <body>
   <header class="topbar">
@@ -31,8 +31,8 @@
       <p class="eyebrow">ACESSO</p>
       <h2>Entre para usar o Editor Conquistando</h2>
       <p class="auth-copy">
-        O editor comercial usa login. Se o acesso ainda nÃ£o estiver liberado,
-        vocÃª serÃ¡ enviado para o pagamento.
+        O editor comercial usa login. Se o acesso ainda não estiver liberado,
+        você será enviado para o pagamento.
       </p>
       <form class="login-form" id="loginForm">
         <label>E-mail<input id="loginEmail" type="email" autocomplete="email"></label>
@@ -49,12 +49,12 @@
           <button id="confirmPin" type="button" class="secondary small">Liberar como desenvolvedor</button>
           <span id="pinStatus"></span>
         </div>
-        <p>Use apenas para manutenÃ§Ã£o, testes ou aparelhos autorizados.</p>
+        <p>Use apenas para manutenção, testes ou aparelhos autorizados.</p>
       </details>
     </div>
   </section>
 
-  <main id="appShell" hidden>
+  <main id="appShell" class="auth-locked">
     <section class="editor">
       <div class="step">
         <span>1</span>
@@ -269,6 +269,6 @@ Pares:"></textarea>
     </ol>
   </dialog>
 
-  <script src="/static/app.js?v=23" defer></script>
+  <script src="/static/app.js?v=24" defer></script>
 </body>
 </html>

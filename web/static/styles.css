@@ -56,8 +56,8 @@ button, summary, .upload { -webkit-tap-highlight-color: transparent; }
   letter-spacing: .14em;
 }
 .topbar h1 { margin: 0; font-size: 20px; }
+.topbar #installHelp { margin-left: auto; }
 .session-chip {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -66,6 +66,8 @@ button, summary, .upload { -webkit-tap-highlight-color: transparent; }
   border-radius: 999px;
   background: rgba(41,45,54,.82);
 }
+.session-chip:not([hidden]) { margin-left: auto; }
+.session-chip:not([hidden]) + #installHelp { margin-left: 0; }
 .session-chip span {
   max-width: 190px;
   overflow: hidden;
@@ -85,13 +87,23 @@ main {
   align-items: start;
 }
 .auth-panel {
-  min-height: calc(100vh - 87px);
+  position: fixed;
+  inset: 86px 0 0;
+  z-index: 80;
   display: grid;
   place-items: center;
   padding: 28px;
+  background: rgba(10,11,14,.56);
+  backdrop-filter: blur(5px);
+  overflow: auto;
+}
+.auth-panel[hidden] {
+  display: none;
 }
 .auth-card {
   width: min(500px, 100%);
+  max-height: calc(100vh - 124px);
+  overflow: auto;
   padding: 26px;
   border: 1px solid var(--line);
   border-radius: 20px;
@@ -133,6 +145,12 @@ main {
 }
 .dev-access {
   margin-top: 18px;
+}
+main.auth-locked {
+  pointer-events: none;
+  user-select: none;
+  filter: blur(2px);
+  opacity: .48;
 }
 .editor, .preview {
   background: rgba(23,25,31,.96);

@@ -50,6 +50,8 @@ const state = {
   previewUrls: [],
   slideIndex: 0,
   draftsInitialized: false,
+  paymentRequired: false,
+  paymentUrl: "",
 };
 
 const fieldIds = {
@@ -120,6 +122,55 @@ function setPaymentLink(url = "") {
   button.href = url;
 }
 
+function setTopPayment(session = {}) {
+  const button = $("#topPaymentButton");
+  const needsPayment = Boolean(session.payment_required);
+  const url = session.payment_url || "";
+  button.hidden = !needsPayment;
+  button.classList.toggle("disabled", needsPayment && !url);
+  if (!needsPayment) {
+    button.removeAttribute("href");
+    return;
+  }
+  button.textContent = url ? "Pagamento" : "Pagamento pendente";
+  if (url) {
+    button.href = url;
+  } else {
+    button.removeAttribute("href");
+  }
+}
+
+function setSubscriptionState(session = {}) {
+  state.paymentRequired = Boolean(session.payment_required);
+  state.paymentUrl = session.payment_url || "";
+  $("#quickText").readOnly = state.paymentRequired;
+  $$("#manualEditor textarea, #manualEditor input, #fixedHeaderSettings input").forEach((field) => {
+    field.readOnly = state.paymentRequired;
+  });
+  $("#photos").disabled = false;
+  $$(".single-photo-input").forEach((field) => {
+    field.disabled = false;
+  });
+  $("#appShell").classList.toggle("subscription-locked", state.paymentRequired);
+}
+
+function showSubscriptionRequired() {
+  const url = state.paymentUrl || "";
+  const link = $("#subscriptionPaymentLink");
+  link.hidden = !url;
+  if (url) link.href = url;
+  else link.removeAttribute("href");
+  setMessage("É necessário realizar a assinatura para editar e gerar PowerPoint.", "error");
+  const dialog = $("#subscriptionDialog");
+  if (dialog?.showModal) dialog.showModal();
+}
+
+function requiresSubscription() {
+  if (!state.paymentRequired) return false;
+  showSubscriptionRequired();
+  return true;
+}
+
 function setAuthMode(mode) {
   const signup = mode === "signup";
   $("#loginForm").hidden = signup;
@@ -144,7 +195,11 @@ function setAuthenticated(session = {}) {
   $("#sessionLabel").textContent =
     session.role === "dev"
       ? "Desenvolvedor"
+      : session.payment_required
+        ? "Conta pendente"
       : session.name || session.email || "Usuário liberado";
+  setTopPayment(session);
+  setSubscriptionState(session);
   setLoginStatus("");
 }
 
@@ -153,6 +208,8 @@ function setLocked(session = {}) {
   $("#appShell").hidden = false;
   $("#appShell").classList.add("auth-locked");
   $("#sessionChip").hidden = true;
+  setTopPayment({});
+  setSubscriptionState({});
   setPaymentLink(session.payment_url || "");
 }
 
@@ -863,6 +920,7 @@ $("#copyTemplate").addEventListener("click", async () => {
   }
 });
 $("#insertTemplate").addEventListener("click", () => {
+  if (requiresSubscription()) return;
   if ($("#quickText").value.trim()) {
     setTemplateStatus("O campo já tem texto. Copie o modelo se quiser usar fora.", "error");
     return;
@@ -873,6 +931,7 @@ $("#insertTemplate").addEventListener("click", () => {
   setTemplateStatus("Modelo colocado no campo.", "success");
 });
 $("#saveFixedHeader").addEventListener("click", () => {
+  if (requiresSubscription()) return;
   const fixed = {
     codigo: $("#fixedCodigo").value.trim(),
     razao: $("#fixedRazao").value.trim(),
@@ -898,6 +957,7 @@ $("#saveFixedHeader").addEventListener("click", () => {
   }
 });
 $("#clearFixedHeader").addEventListener("click", () => {
+  if (requiresSubscription()) return;
   state.fixedHeader = { codigo: "", razao: "", regional: "", microrregiao: "" };
   localStorage.removeItem(FIXED_HEADER_KEY);
   Object.values(state.drafts).forEach((draft) => {
@@ -987,14 +1047,11 @@ $("#signupForm").addEventListener("submit", async (event) => {
       }),
     });
     const result = await response.json();
-    if (response.status === 402 && result.payment_url) {
-      setLoginStatus("Conta criada. Indo para o pagamento…", "success");
-      setPaymentLink(result.payment_url);
-      window.location.href = result.payment_url;
-      return;
-    }
     if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível criar a conta.");
-    setLoginStatus("Conta criada.", "success");
+    $("#signupPassword").value = "";
+    $("#signupPasswordConfirm").value = "";
+    setLoginStatus(result.message || "Conta criada.", "success");
+    await refreshAccess();
   } catch (error) {
     setLoginStatus(error.message, "error");
   }
@@ -1017,6 +1074,7 @@ $("#logoutButton").addEventListener("click", async () => {
   state.draftsInitialized = false;
   $("#appShell").classList.add("auth-locked");
   $("#sessionChip").hidden = true;
+  setTopPayment({});
   await refreshAccess();
 });
 $$(".brand-option").forEach((button) => {
@@ -1030,6 +1088,7 @@ $$(".brand-option").forEach((button) => {
   });
 });
 $("#quickText").addEventListener("input", () => {
+  if (state.paymentRequired) return;
   const draft = activeDraft();
   draft.text = $("#quickText").value;
   draft.parsed = null;
@@ -1040,6 +1099,7 @@ $("#quickText").addEventListener("input", () => {
   schedulePreview();
 });
 $("#manualEditor").addEventListener("input", (event) => {
+  if (state.paymentRequired) return;
   if (event.target.matches("textarea")) autoResizeTextarea(event.target);
   activeDraft().data = collectFields();
   queueMetadataSave();
@@ -1048,7 +1108,22 @@ $("#manualEditor").addEventListener("input", (event) => {
 $("#manualEditor").addEventListener("toggle", () => {
   if ($("#manualEditor").open) requestAnimationFrame(resizeManualTextareas);
 });
+$$(
+  "#quickText, #manualEditor textarea, #manualEditor input, #fixedHeaderSettings input"
+).forEach((field) => {
+  field.addEventListener("pointerdown", (event) => {
+    if (!state.paymentRequired) return;
+    event.preventDefault();
+    showSubscriptionRequired();
+  });
+});
+$(".upload").addEventListener("click", (event) => {
+  if (!state.paymentRequired) return;
+  event.preventDefault();
+  showSubscriptionRequired();
+});
 $("#parseButton").addEventListener("click", async () => {
+  if (requiresSubscription()) return;
   setMessage("");
   try {
     await interpret(true);
@@ -1058,6 +1133,10 @@ $("#parseButton").addEventListener("click", async () => {
   }
 });
 $("#photos").addEventListener("change", async (event) => {
+  if (requiresSubscription()) {
+    event.target.value = "";
+    return;
+  }
   const files = [...event.target.files];
   const brand = state.brand;
   const draft = activeDraft();
@@ -1077,12 +1156,17 @@ $("#photos").addEventListener("change", async (event) => {
 });
 $$("#photoGrid .photo-slot").forEach((slot) => {
   slot.addEventListener("click", () => {
+    if (requiresSubscription()) return;
     const index = Number(slot.dataset.photoIndex);
     $(`#photoSingle${index}`).click();
   });
 });
 $$(".single-photo-input").forEach((input, index) => {
   input.addEventListener("change", async (event) => {
+    if (requiresSubscription()) {
+      event.target.value = "";
+      return;
+    }
     const file = event.target.files?.[0];
     if (!file) return;
     const brand = state.brand;
@@ -1093,8 +1177,14 @@ $$(".single-photo-input").forEach((input, index) => {
     await savePhotoSelection(brand, `Foto ${index + 1} selecionada.`);
   });
 });
-$("#previewButton").addEventListener("click", guardedPreview);
-$("#generateButton").addEventListener("click", () => $("#generateDialog").showModal());
+$("#previewButton").addEventListener("click", () => {
+  if (requiresSubscription()) return;
+  guardedPreview();
+});
+$("#generateButton").addEventListener("click", () => {
+  if (requiresSubscription()) return;
+  $("#generateDialog").showModal();
+});
 $("#closeGenerateDialog").addEventListener("click", () => $("#generateDialog").close());
 $$("[data-generate-brand]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -1147,6 +1237,7 @@ document.addEventListener("fullscreenchange", handleFullscreenExit);
 document.addEventListener("webkitfullscreenchange", handleFullscreenExit);
 $("#installHelp").addEventListener("click", () => $("#installDialog").showModal());
 $("#closeInstall").addEventListener("click", () => $("#installDialog").close());
+$("#closeSubscriptionDialog").addEventListener("click", () => $("#subscriptionDialog").close());
 
 function saveBeforeLeaving() {
   try {

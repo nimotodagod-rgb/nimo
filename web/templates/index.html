@@ -10,7 +10,7 @@
   <title>Editor Conquistando</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icon.png">
-  <link rel="stylesheet" href="/static/styles.css?v=27">
+  <link rel="stylesheet" href="/static/styles.css?v=29">
 </head>
 <body>
   <header class="topbar">
@@ -23,6 +23,7 @@
       <span id="sessionLabel"></span>
       <button id="logoutButton" type="button" class="ghost small">Sair</button>
     </div>
+    <a id="topPaymentButton" class="top-payment" hidden>Pagamento</a>
     <button id="installHelp" class="ghost small">Instalar no iPad</button>
   </header>
 
@@ -58,7 +59,7 @@
             <button type="button" class="toggle-password" data-toggle-password="signupPasswordConfirm" aria-label="Ver confirmação da senha">Ver</button>
           </span>
         </label>
-        <button type="submit" class="primary large">Criar conta e pagar</button>
+        <button type="submit" class="primary large">Criar conta</button>
       </form>
       <a id="paymentButton" class="payment-button" hidden>Ir para pagamento</a>
       <p id="loginStatus" class="message" aria-live="polite"></p>
@@ -290,6 +291,13 @@ Pares:"></textarea>
     </ol>
   </dialog>
 
-  <script src="/static/app.js?v=27" defer></script>
+  <dialog id="subscriptionDialog">
+    <button class="dialog-close" id="closeSubscriptionDialog">×</button>
+    <h2>Assinatura necessária</h2>
+    <p>Para editar informações, enviar fotos, visualizar ou gerar PowerPoint, realize a assinatura.</p>
+    <a id="subscriptionPaymentLink" class="payment-button">Ir para pagamento</a>
+  </dialog>
+
+  <script src="/static/app.js?v=29" defer></script>
 </body>
 </html>

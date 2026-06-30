@@ -68,7 +68,8 @@ button, summary, .upload { -webkit-tap-highlight-color: transparent; }
   background: rgba(41,45,54,.82);
 }
 .session-chip:not([hidden]) { margin-left: auto; }
-.session-chip:not([hidden]) + #installHelp { margin-left: 0; }
+.session-chip:not([hidden]) ~ #installHelp,
+.top-payment:not([hidden]) ~ #installHelp { margin-left: 0; }
 .session-chip span {
   max-width: 190px;
   overflow: hidden;
@@ -77,6 +78,26 @@ button, summary, .upload { -webkit-tap-highlight-color: transparent; }
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.top-payment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: linear-gradient(105deg, var(--orange), #ff7335 62%, var(--pink));
+  color: #171717;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+  box-shadow: 0 10px 26px rgba(255,176,46,.2);
+}
+.top-payment.disabled {
+  border: 1px solid rgba(255,176,46,.45);
+  background: rgba(255,176,46,.12);
+  color: #fff0c7;
+  box-shadow: none;
+  cursor: default;
 }
 main {
   width: min(1480px, 100%);
@@ -197,6 +218,16 @@ main.auth-locked {
   user-select: none;
   filter: blur(2px);
   opacity: .48;
+}
+main.subscription-locked textarea[readonly],
+main.subscription-locked input[readonly] {
+  cursor: not-allowed;
+  border-color: rgba(255,176,46,.34);
+  background-image: linear-gradient(rgba(255,176,46,.035), rgba(255,176,46,.035));
+}
+#subscriptionDialog p {
+  color: var(--muted);
+  line-height: 1.5;
 }
 .editor, .preview {
   background: rgba(23,25,31,.96);

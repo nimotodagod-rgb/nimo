@@ -115,7 +115,7 @@ def configured_users() -> dict[str, dict]:
                         "name": str(item.get("name", email)).strip() or email,
                     }
         except json.JSONDecodeError:
-            app.logger.warning("APP_USERS_JSON invÃ¡lido.")
+            app.logger.warning("APP_USERS_JSON inválido.")
 
     raw_users = os.environ.get("APP_USERS", "").strip()
     if raw_users:
@@ -137,6 +137,12 @@ def configured_users() -> dict[str, dict]:
 
 
 def has_access() -> bool:
+    if session.get("access") in {"dev", "user", "trial"}:
+        return True
+    return check_pin()
+
+
+def has_paid_access() -> bool:
     if session.get("access") in {"dev", "user"}:
         return True
     return check_pin()
@@ -146,11 +152,22 @@ def access_error():
     return jsonify(
         {
             "ok": False,
-            "error": "FaÃ§a login para usar o editor.",
+            "error": "Faça login para usar o editor.",
             "requires_login": True,
             "payment_url": payment_url(),
         }
     ), 401
+
+
+def payment_required_error():
+    return jsonify(
+        {
+            "ok": False,
+            "error": "É necessário realizar a assinatura para usar o editor.",
+            "requires_payment": True,
+            "payment_url": payment_link_for(session.get("email", ""), session.get("name", "")),
+        }
+    ), 402
 
 
 def error(message: str, status: int = 400):
@@ -218,14 +235,17 @@ def health():
 @app.get("/api/session")
 def current_session():
     role = session.get("access", "")
+    paid_user = role in {"dev", "user"}
+    payment_required = role == "trial"
     return jsonify(
         {
             "ok": True,
-            "has_access": role in {"dev", "user"},
+            "has_access": role in {"dev", "user", "trial"},
             "role": role,
             "email": session.get("email", ""),
             "name": session.get("name", ""),
-            "payment_url": payment_url(),
+            "payment_required": payment_required,
+            "payment_url": "" if paid_user else payment_link_for(session.get("email", ""), session.get("name", "")),
         }
     )
 
@@ -279,14 +299,21 @@ def signup():
         return error("Esta conta já está liberada. Use Entrar.", 409)
 
     link = payment_link_for(email, name)
+    session["access"] = "trial"
+    session["email"] = email
+    session["name"] = name
     return jsonify(
         {
-            "ok": False,
-            "requires_payment": True,
+            "ok": True,
+            "has_access": True,
+            "role": "trial",
+            "email": email,
+            "name": name,
+            "payment_required": True,
             "payment_url": link,
-            "error": "Cadastro iniciado. Faça o pagamento para liberar o acesso.",
+            "message": "Conta criada. O pagamento fica disponível no topo.",
         }
-    ), 402
+    )
 
 
 @app.post("/api/dev-pin")
@@ -318,6 +345,8 @@ def brand_header(brand):
 def parse_text():
     if not has_access():
         return access_error()
+    if not has_paid_access():
+        return payment_required_error()
     body = request.get_json(silent=True) or {}
     values, missing = parse_quick_text(body.get("text", ""))
     return jsonify({"ok": True, "data": values, "missing": missing})
@@ -327,6 +356,8 @@ def parse_text():
 def process():
     if not has_access():
         return access_error()
+    if not has_paid_access():
+        return payment_required_error()
     brand = request.form.get("brand", "br-sport")
     if brand not in BRAND_FILES:
         return error("Marca inválida.")

@@ -264,8 +264,11 @@ def signup():
     name = str(body.get("name", "")).strip()
     email = str(body.get("email", "")).strip().casefold()
     password = str(body.get("password", ""))
+    confirmation = str(body.get("password_confirm", body.get("passwordConfirm", "")))
     if not name or not email or not password:
         return error("Preencha nome, e-mail e senha.")
+    if confirmation and not hmac.compare_digest(password, confirmation):
+        return error("As senhas não conferem.")
     if "@" not in email or "." not in email.rsplit("@", 1)[-1]:
         return error("Informe um e-mail válido.")
     if len(password) < 6:

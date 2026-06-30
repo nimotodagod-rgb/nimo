@@ -10,7 +10,7 @@
   <title>Editor Conquistando</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icon.png">
-  <link rel="stylesheet" href="/static/styles.css?v=26">
+  <link rel="stylesheet" href="/static/styles.css?v=27">
 </head>
 <body>
   <header class="topbar">
@@ -46,7 +46,18 @@
       <form class="login-form" id="signupForm" hidden>
         <label>Nome<input id="signupName" type="text" autocomplete="name"></label>
         <label>E-mail<input id="signupEmail" type="email" autocomplete="email"></label>
-        <label>Senha<input id="signupPassword" type="password" autocomplete="new-password"></label>
+        <label>Senha
+          <span class="password-field">
+            <input id="signupPassword" type="password" autocomplete="new-password">
+            <button type="button" class="toggle-password" data-toggle-password="signupPassword" aria-label="Ver senha">Ver</button>
+          </span>
+        </label>
+        <label>Confirmar senha
+          <span class="password-field">
+            <input id="signupPasswordConfirm" type="password" autocomplete="new-password">
+            <button type="button" class="toggle-password" data-toggle-password="signupPasswordConfirm" aria-label="Ver confirmação da senha">Ver</button>
+          </span>
+        </label>
         <button type="submit" class="primary large">Criar conta e pagar</button>
       </form>
       <a id="paymentButton" class="payment-button" hidden>Ir para pagamento</a>
@@ -279,6 +290,6 @@ Pares:"></textarea>
     </ol>
   </dialog>
 
-  <script src="/static/app.js?v=26" defer></script>
+  <script src="/static/app.js?v=27" defer></script>
 </body>
 </html>

@@ -968,6 +968,13 @@ $("#signupForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   setLoginStatus("Criando conta…");
   setPaymentLink("");
+  const password = $("#signupPassword").value;
+  const confirmation = $("#signupPasswordConfirm").value;
+  if (password !== confirmation) {
+    setLoginStatus("As senhas não conferem.", "error");
+    $("#signupPasswordConfirm").focus();
+    return;
+  }
   try {
     const response = await fetch("/api/signup", {
       method: "POST",
@@ -975,7 +982,8 @@ $("#signupForm").addEventListener("submit", async (event) => {
       body: JSON.stringify({
         name: $("#signupName").value.trim(),
         email: $("#signupEmail").value.trim(),
-        password: $("#signupPassword").value,
+        password,
+        password_confirm: confirmation,
       }),
     });
     const result = await response.json();
@@ -990,6 +998,15 @@ $("#signupForm").addEventListener("submit", async (event) => {
   } catch (error) {
     setLoginStatus(error.message, "error");
   }
+});
+$$(".toggle-password").forEach((button) => {
+  button.addEventListener("click", () => {
+    const input = $(`#${button.dataset.togglePassword}`);
+    const showing = input.type === "text";
+    input.type = showing ? "password" : "text";
+    button.textContent = showing ? "Ver" : "Ocultar";
+    button.setAttribute("aria-label", showing ? "Ver senha" : "Ocultar senha");
+  });
 });
 $("#loginTab").addEventListener("click", () => setAuthMode("login"));
 $("#signupTab").addEventListener("click", () => setAuthMode("signup"));

@@ -154,6 +154,29 @@ main {
   display: grid;
   gap: 12px;
 }
+.password-field {
+  position: relative;
+  display: block;
+  margin-top: 5px;
+}
+.password-field input {
+  padding-right: 70px;
+  margin-top: 0;
+}
+.toggle-password {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  transform: translateY(-50%);
+  padding: 6px 9px;
+  border-color: #454b58;
+  background: rgba(17,18,23,.86);
+  color: #f0f2f6;
+  font-size: 11px;
+}
+.toggle-password:active {
+  transform: translateY(-50%) scale(.985);
+}
 .payment-button {
   display: inline-flex;
   justify-content: center;

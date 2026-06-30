@@ -10,7 +10,7 @@
   <title>Editor Conquistando</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icon.png">
-  <link rel="stylesheet" href="/static/styles.css?v=40">
+  <link rel="stylesheet" href="/static/styles.css?v=41">
 </head>
 <body>
   <header class="topbar">
@@ -88,7 +88,8 @@
       <div class="segmented" role="radiogroup" aria-label="Marca">
         <button class="brand-option active" data-brand="br-sport">BR SPORT</button>
         <button class="brand-option" data-brand="actvitta">ACTVITTA</button>
-        <button class="brand-option" data-brand="importado">IMPORTADO</button>
+        <!-- Recurso preservado para reativação futura pela configuração do app. -->
+        <button class="brand-option" data-brand="importado" hidden>IMPORTADO</button>
       </div>
 
       <details id="fixedHeaderSettings">
@@ -132,7 +133,8 @@
           </div>
         </div>
       </details>
-      <div class="powerpoint-import">
+      <!-- Importação preservada no código, mas desativada na versão comercial atual. -->
+      <div class="powerpoint-import" hidden>
         <div>
           <strong>Abrir PowerPoint para editar</strong>
           <small>Aceita arquivos antigos .ppt e também .pptx.</small>
@@ -328,6 +330,6 @@ Pares:"></textarea>
     <a id="subscriptionPaymentLink" class="payment-button">Ir para pagamento</a>
   </dialog>
 
-  <script src="/static/app.js?v=40" defer></script>
+  <script src="/static/app.js?v=41" defer></script>
 </body>
 </html>

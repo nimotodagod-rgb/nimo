@@ -4,6 +4,8 @@ const DRAFT_STORAGE_KEY = "conquistando-drafts-v1";
 const FIXED_HEADER_KEY = "conquistando-fixed-header-v1";
 const PHOTO_DB_NAME = "conquistando-local";
 const PHOTO_STORE = "brand-photos";
+// Mantém todo o recurso de importação pronto para uso futuro sem exibi-lo no site.
+const ENABLE_POWERPOINT_IMPORT = false;
 const QUICK_TEMPLATE = `AÇÕES BEM SUCEDIDAS
 VENDAS:
 
@@ -601,6 +603,7 @@ function importedPhotoFile(photo, index) {
 }
 
 function activateBrand(brand) {
+  if (!ENABLE_POWERPOINT_IMPORT && brand === "importado") return;
   if (!state.drafts[brand] || brand === state.brand) return;
   saveActiveDraft();
   state.brand = brand;
@@ -1614,7 +1617,8 @@ $("#previewButton").addEventListener("click", () => {
 });
 $("#generateButton").addEventListener("click", () => {
   if (requiresSubscription()) return;
-  $("#generateImported").hidden = state.brand !== "importado";
+  $("#generateImported").hidden =
+    !ENABLE_POWERPOINT_IMPORT || state.brand !== "importado";
   $("#generateDialog").showModal();
 });
 $("#closeGenerateDialog").addEventListener("click", () => $("#generateDialog").close());
@@ -1762,4 +1766,13 @@ async function initializeDraftStorage() {
   }
 }
 
+function configureOptionalFeatures() {
+  const importedBrandButton = $('[data-brand="importado"]');
+  const importPanel = $(".powerpoint-import");
+  importedBrandButton.hidden = !ENABLE_POWERPOINT_IMPORT;
+  importPanel.hidden = !ENABLE_POWERPOINT_IMPORT;
+  $(".segmented").classList.toggle("with-import", ENABLE_POWERPOINT_IMPORT);
+}
+
+configureOptionalFeatures();
 refreshAccess();

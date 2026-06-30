@@ -1136,6 +1136,12 @@ $("#loginForm").addEventListener("submit", async (event) => {
       setPaymentLink(result.payment_url);
       return;
     }
+    if (response.status === 404) {
+      setAuthMode("signup");
+      $("#signupEmail").value = $("#loginEmail").value.trim();
+      $("#signupName").focus();
+      throw new Error(result.error || "Conta não encontrada. Crie sua conta para continuar.");
+    }
     if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível entrar.");
     $("#loginPassword").value = "";
     setLoginStatus(result.payment_required ? "Conta acessada. Assine para liberar o editor." : "Acesso liberado.", "success");

@@ -372,7 +372,10 @@ def login():
     users = known_users()
     user = users.get(email)
     if not user:
-        return error("Conta nao encontrada. Crie uma conta para entrar.", 404)
+        return error(
+            "Conta nao encontrada. Se voce criou antes da ultima atualizacao, clique em Criar conta e cadastre novamente.",
+            404,
+        )
     if not password_matches(password, user["password"]):
         return error("E-mail ou senha incorretos.", 401)
     return jsonify(start_user_session(email, user))

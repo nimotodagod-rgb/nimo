@@ -736,6 +736,7 @@ function saveActiveDraft() {
 function loadActiveDraft() {
   const draft = activeDraft();
   $("#quickText").value = draft.text;
+  updateBoldButton();
   draft.data = applyHeaderForBrand(draft.data || emptyFields());
   fillFields(draft.data);
   $("#parseStatus").textContent = draft.status;
@@ -1110,47 +1111,115 @@ $("#insertTemplate").addEventListener("click", () => {
   $("#quickText").focus();
   setTemplateStatus("Modelo colocado no campo.", "success");
 });
+function boldSelectionState() {
+  const field = $("#quickText");
+  const start = field.selectionStart ?? 0;
+  const end = field.selectionEnd ?? start;
+  const value = field.value;
+  const selected = value.slice(start, end);
+  const selectedWithMarkers =
+    selected.startsWith("**") && selected.endsWith("**") && selected.length >= 4;
+  const surroundedByMarkers =
+    start >= 2 &&
+    value.slice(start - 2, start) === "**" &&
+    value.slice(end, end + 2) === "**";
+  return {
+    start,
+    end,
+    value,
+    selected,
+    hasSelection: end > start && Boolean(selected.trim()),
+    highlighted: selectedWithMarkers || surroundedByMarkers,
+    selectedWithMarkers,
+    surroundedByMarkers,
+  };
+}
+
+function setBoldStatus(text, kind = "") {
+  const status = $("#boldStatus");
+  status.textContent = text;
+  status.className = kind;
+}
+
+function updateBoldButton() {
+  const button = $("#boldButton");
+  const label = $("#boldButtonLabel");
+  const selection = boldSelectionState();
+  button.classList.toggle("ready", selection.hasSelection);
+  button.classList.toggle("active", selection.hasSelection && selection.highlighted);
+  button.setAttribute("aria-pressed", String(selection.hasSelection && selection.highlighted));
+  if (selection.hasSelection && selection.highlighted) {
+    label.textContent = "Remover destaque";
+    button.title = "Remover o destaque do trecho selecionado";
+    setBoldStatus("Este trecho já está destacado. Toque no botão para remover.", "active");
+  } else if (selection.hasSelection) {
+    label.textContent = "Destacar seleção";
+    button.title = "Destacar o trecho selecionado";
+    setBoldStatus("Trecho selecionado. Agora toque em “Destacar seleção”.", "ready");
+  } else {
+    label.textContent = "Destacar";
+    button.title = "Primeiro selecione uma palavra ou frase";
+    setBoldStatus(
+      "O trecho ficará em negrito no PowerPoint. Os sinais ** não aparecem no arquivo final."
+    );
+  }
+}
+
 function toggleBoldSelection() {
   if (requiresSubscription()) return;
   const field = $("#quickText");
-  const start = field.selectionStart;
-  const end = field.selectionEnd;
-  const value = field.value;
-  const selected = value.slice(start, end);
+  const selection = boldSelectionState();
+  const { start, end, selected } = selection;
+  if (!selection.hasSelection) {
+    field.focus();
+    $("#boldButton").classList.remove("needs-selection");
+    requestAnimationFrame(() => $("#boldButton").classList.add("needs-selection"));
+    setBoldStatus("Primeiro selecione a palavra ou frase que deseja destacar.", "error");
+    return;
+  }
   let replacement;
   let selectionStart;
   let selectionEnd;
   let replaceStart = start;
   let replaceEnd = end;
-  if (selected.startsWith("**") && selected.endsWith("**") && selected.length >= 4) {
+  let removed = false;
+  if (selection.selectedWithMarkers) {
     replacement = selected.slice(2, -2);
     selectionStart = start;
     selectionEnd = start + replacement.length;
-  } else if (
-    start >= 2 &&
-    value.slice(start - 2, start) === "**" &&
-    value.slice(end, end + 2) === "**"
-  ) {
+    removed = true;
+  } else if (selection.surroundedByMarkers) {
     replacement = selected;
     replaceStart = start - 2;
     replaceEnd = end + 2;
     selectionStart = replaceStart;
     selectionEnd = replaceStart + replacement.length;
+    removed = true;
   } else {
     replacement = `**${selected}**`;
     selectionStart = start + 2;
-    selectionEnd = selected ? end + 2 : start + 2;
+    selectionEnd = end + 2;
   }
   field.setRangeText(replacement, replaceStart, replaceEnd, "end");
   field.dispatchEvent(new Event("input", { bubbles: true }));
   field.focus();
   field.setSelectionRange(selectionStart, selectionEnd);
+  updateBoldButton();
+  setBoldStatus(
+    removed
+      ? "Destaque removido."
+      : "Destaque aplicado. O trecho ficará em negrito no PowerPoint.",
+    "success"
+  );
 }
 $("#boldButton").addEventListener("pointerdown", (event) => {
   // Mantém a seleção do textarea ao tocar no botão, inclusive no Safari/iPad.
   event.preventDefault();
 });
 $("#boldButton").addEventListener("click", toggleBoldSelection);
+["select", "keyup", "pointerup", "focus"].forEach((eventName) => {
+  $("#quickText").addEventListener(eventName, updateBoldButton);
+});
 $("#quickText").addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
     event.preventDefault();
@@ -1452,6 +1521,7 @@ $("#quickText").addEventListener("input", () => {
   draft.textVersion = "";
   draft.status = "";
   $("#parseStatus").textContent = "";
+  updateBoldButton();
   queueMetadataSave();
   schedulePreview();
 });

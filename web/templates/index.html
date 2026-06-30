@@ -10,7 +10,7 @@
   <title>Editor Conquistando</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icon.png">
-  <link rel="stylesheet" href="/static/styles.css?v=39">
+  <link rel="stylesheet" href="/static/styles.css?v=40">
 </head>
 <body>
   <header class="topbar">
@@ -143,11 +143,18 @@
         <input id="powerPointImport" type="file"
           accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">
       </div>
-      <div class="text-format-toolbar" aria-label="Formatação do texto">
-        <button id="boldButton" type="button" class="bold-button" title="Aplicar negrito ao trecho selecionado">
-          <b>B</b> Negrito
+      <div class="text-format-toolbar" aria-label="Destaque do texto">
+        <button id="boldButton" type="button" class="bold-button" title="Destacar o trecho selecionado"
+          aria-pressed="false">
+          <b>A</b>
+          <span id="boldButtonLabel">Destacar</span>
         </button>
-        <span>Selecione um trecho ou toque antes de digitar. Os ** viram negrito no PowerPoint.</span>
+        <div class="format-guidance">
+          <span><strong>1.</strong> Selecione uma palavra ou frase. <strong>2.</strong> Toque em Destacar.</span>
+          <small id="boldStatus" aria-live="polite">
+            O trecho ficará em negrito no PowerPoint. Os sinais ** não aparecem no arquivo final.
+          </small>
+        </div>
       </div>
       <textarea id="quickText" rows="16" spellcheck="true" placeholder="AÇÕES BEM SUCEDIDAS
 VENDAS:
@@ -321,6 +328,6 @@ Pares:"></textarea>
     <a id="subscriptionPaymentLink" class="payment-button">Ir para pagamento</a>
   </dialog>
 
-  <script src="/static/app.js?v=39" defer></script>
+  <script src="/static/app.js?v=40" defer></script>
 </body>
 </html>

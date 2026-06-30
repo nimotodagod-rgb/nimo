@@ -337,17 +337,47 @@ textarea:focus, input:focus {
   align-items: center;
   gap: 10px;
   margin: 12px 0 7px;
+  padding: 10px;
+  border: 1px solid rgba(255,176,46,.28);
+  border-radius: 11px;
+  background: rgba(255,176,46,.055);
 }
-.text-format-toolbar span {
+.format-guidance {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.format-guidance > span {
+  color: #e6e9ef;
+  font-size: 11px;
+}
+.format-guidance strong { color: var(--orange); }
+.format-guidance small {
   color: var(--muted);
   font-size: 11px;
 }
+.format-guidance small.ready { color: #ffca6f; }
+.format-guidance small.active,
+.format-guidance small.success { color: var(--green); }
+.format-guidance small.error { color: #ff8585; }
 .bold-button {
   flex: 0 0 auto;
   padding: 8px 11px;
   border-color: rgba(255,176,46,.65);
   background: linear-gradient(180deg, #3b404d, #292d36);
   color: white;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.bold-button.ready {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 2px rgba(255,176,46,.16);
+}
+.bold-button.active {
+  border-color: #51dd8b;
+  background: linear-gradient(180deg, #315044, #253b33);
+}
+.bold-button.needs-selection {
+  animation: needs-selection .32s ease 2;
 }
 .bold-button b {
   display: inline-grid;
@@ -358,6 +388,12 @@ textarea:focus, input:focus {
   border-radius: 5px;
   background: var(--orange);
   color: #171717;
+}
+.bold-button.active b {
+  background: #51dd8b;
+}
+@keyframes needs-selection {
+  50% { transform: translateX(3px); border-color: #ff8585; }
 }
 .inline-actions {
   display: flex;
@@ -938,7 +974,8 @@ dialog li { margin: 11px 0; color: #d7d9de; }
   .main-actions { grid-template-columns: 1fr; }
   .powerpoint-import { align-items: stretch; flex-direction: column; }
   .powerpoint-import button { width: 100%; }
-  .text-format-toolbar { align-items: flex-start; }
+  .text-format-toolbar { align-items: stretch; flex-direction: column; }
+  .bold-button { width: 100%; }
   .template-actions { align-items: stretch; flex-direction: column; }
   .template-actions button, .template-actions .ghost { width: 100%; }
   .preview-deck { max-height: 70vh; }

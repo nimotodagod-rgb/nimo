@@ -340,7 +340,7 @@ def add_identification_header(root: ET.Element, data: dict) -> None:
         y=158_400,
         width=2_682_000,
         height=205_200,
-        size=850,
+        size=800,
         bold=True,
     )
     add_textbox(

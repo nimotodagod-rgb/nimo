@@ -235,7 +235,7 @@ def add_header(doc, page, data):
     add_rectangle(doc, page, 20_550, 260, 7_650, 1_710, 0xFFFFFF)
     add_rectangle(doc, page, 20_650, 430, 7_450, 620, 0xFFF200)
     add_rectangle(doc, page, 20_650, 1_070, 7_450, 620, 0xFFF200)
-    add_text(doc, page, f"{code} – {reason}", 20_650, 440, 7_450, 570, 8.5, True)
+    add_text(doc, page, f"{code} – {reason}", 20_650, 440, 7_450, 570, 8.0, True)
     add_text(doc, page, f"{regional} – {micro}", 20_650, 1_080, 7_450, 570, 10.5, False)
 
 

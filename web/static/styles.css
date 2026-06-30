@@ -313,6 +313,25 @@ textarea:focus, input:focus {
   border-color: var(--orange);
   box-shadow: 0 0 0 3px rgba(255,176,46,.10);
 }
+.powerpoint-import {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 7px;
+  padding: 12px;
+  border: 1px solid rgba(90,171,255,.42);
+  border-radius: 11px;
+  background: linear-gradient(110deg, rgba(43,107,178,.18), rgba(32,35,43,.75));
+}
+.powerpoint-import div {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 3px;
+}
+.powerpoint-import strong { font-size: 13px; }
+.powerpoint-import small { color: var(--muted); font-size: 11px; }
+#powerPointImport { display: none; }
 .text-format-toolbar {
   display: flex;
   align-items: center;
@@ -672,7 +691,16 @@ details h3 {
   text-align: center;
   line-height: 1;
 }
+.ppt-ident::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: -.3cqw -.45cqw -.65cqw;
+  background: #fff;
+}
 .ppt-ident div {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 1.68cqw;
   margin: 0 0 .21cqw;
@@ -685,7 +713,7 @@ details h3 {
   text-overflow: ellipsis;
   background: #fff200;
 }
-.ppt-ident div:first-child { font-size: .89cqw; font-weight: 700; }
+.ppt-ident div:first-child { font-size: .83cqw; font-weight: 700; }
 .ppt-ident div:last-child { font-size: 1.09cqw; }
 .ppt-body {
   position: absolute;
@@ -897,6 +925,8 @@ dialog li { margin: 11px 0; color: #d7d9de; }
   .editor, .preview { padding: 16px; border-radius: 14px; }
   .manual-grid, .caption-grid { grid-template-columns: 1fr; }
   .main-actions { grid-template-columns: 1fr; }
+  .powerpoint-import { align-items: stretch; flex-direction: column; }
+  .powerpoint-import button { width: 100%; }
   .text-format-toolbar { align-items: flex-start; }
   .template-actions { align-items: stretch; flex-direction: column; }
   .template-actions button, .template-actions .ghost { width: 100%; }

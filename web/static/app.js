@@ -462,6 +462,66 @@ function hasThreePhotos(photos = []) {
   return normalizePhotoList(photos).every(Boolean);
 }
 
+function quickTextFromData(data) {
+  return `AÇÕES BEM SUCEDIDAS
+VENDAS:
+${data.acoes?.vendas || ""}
+
+MKT:
+${data.acoes?.marketing || ""}
+
+CARTEIRA DE CLIENTES:
+${data.acoes?.carteira || ""}
+
+PONTOS DE MELHORIA
+VENDAS:
+${data.melhorias?.vendas || ""}
+
+MKT:
+${data.melhorias?.marketing || ""}
+
+CARTEIRA DE CLIENTES:
+${data.melhorias?.carteira || ""}
+
+FOTO 1
+${data.fotos?.[0]?.cliente || ""}
+${data.fotos?.[0]?.cidade || ""}
+${data.fotos?.[0]?.pares || ""}
+
+FOTO 2
+${data.fotos?.[1]?.cliente || ""}
+${data.fotos?.[1]?.cidade || ""}
+${data.fotos?.[1]?.pares || ""}
+
+FOTO 3
+${data.fotos?.[2]?.cliente || ""}
+${data.fotos?.[2]?.cidade || ""}
+${data.fotos?.[2]?.pares || ""}`;
+}
+
+function importedPhotoFile(photo, index) {
+  const binary = atob(photo.data || "");
+  const bytes = new Uint8Array(binary.length);
+  for (let position = 0; position < binary.length; position += 1) {
+    bytes[position] = binary.charCodeAt(position);
+  }
+  return new File([bytes], photo.name || `foto-importada-${index + 1}.jpg`, {
+    type: photo.type || "image/jpeg",
+    lastModified: Date.now(),
+  });
+}
+
+function activateBrand(brand) {
+  if (!state.drafts[brand] || brand === state.brand) return;
+  saveActiveDraft();
+  state.brand = brand;
+  $$(".brand-option").forEach((item) =>
+    item.classList.toggle("active", item.dataset.brand === brand)
+  );
+  loadActiveDraft();
+  schedulePreview();
+}
+
 function buildCaptionEditor() {
   $("#captionGrid").replaceChildren(
     ...[0, 1, 2].map((index) => {
@@ -1139,14 +1199,100 @@ $("#logoutButton").addEventListener("click", async () => {
   await refreshAccess();
 });
 $$(".brand-option").forEach((button) => {
-  button.addEventListener("click", () => {
-    if (button.dataset.brand === state.brand) return;
-    saveActiveDraft();
-    state.brand = button.dataset.brand;
-    $$(".brand-option").forEach((item) => item.classList.toggle("active", item === button));
-    loadActiveDraft();
+  button.addEventListener("click", () => activateBrand(button.dataset.brand));
+});
+$("#importPowerPointButton").addEventListener("click", () => {
+  if (requiresSubscription()) return;
+  $("#powerPointImport").click();
+});
+$("#powerPointImport").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith(".pptx")) {
+    setMessage("Use um arquivo .pptx. No PowerPoint antigo, escolha Salvar como .pptx.", "error");
+    event.target.value = "";
+    return;
+  }
+  const inferredBrand = /actvitta/i.test(file.name)
+    ? "actvitta"
+    : /br[\s_-]*sport/i.test(file.name)
+      ? "br-sport"
+      : state.brand;
+  const brandName = brandLabel(inferredBrand);
+  const confirmed = window.confirm(
+    `Abrir este PowerPoint em ${brandName}? As informações atuais desta marca serão substituídas.`
+  );
+  if (!confirmed) {
+    event.target.value = "";
+    return;
+  }
+  activateBrand(inferredBrand);
+  setBusy(true);
+  setMessage("Lendo o PowerPoint…");
+  try {
+    const form = new FormData();
+    form.append("powerpoint", file, file.name);
+    const response = await fetch("/api/import-powerpoint", {
+      method: "POST",
+      headers: pinHeaders(),
+      body: form,
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "Não foi possível abrir este PowerPoint.");
+    }
+
+    const importedHeader = {
+      codigo: String(result.data?.codigo || "").trim(),
+      razao: String(result.data?.razao || "").trim(),
+      regional: String(result.data?.regional || "").trim(),
+      microrregiao: String(result.data?.microrregiao || "").trim(),
+    };
+    if (Object.values(importedHeader).every(Boolean)) {
+      state.fixedHeader = importedHeader;
+      localStorage.setItem(FIXED_HEADER_KEY, JSON.stringify(importedHeader));
+      fillFixedHeaderForm();
+      updateDraftsWithFixedHeader();
+    }
+
+    const data = applyFixedHeader(result.data || emptyFields());
+    const text = quickTextFromData(data);
+    const draft = activeDraft();
+    draft.text = text;
+    draft.data = data;
+    draft.parsed = data;
+    draft.textVersion = text.trim();
+    draft.status = result.missing?.length
+      ? `${result.missing.length} campo(s) precisam de revisão`
+      : "PowerPoint importado e pronto para revisão";
+    draft.photos = normalizePhotoList(
+      (result.photos || []).map((photo, index) => importedPhotoFile(photo, index))
+    );
+    $("#quickText").value = text;
+    fillFields(data);
+    $("#parseStatus").textContent = draft.status;
+    renderPhotos();
+    persistDraftMetadata();
+    await saveBrandPhotos(state.brand).catch(() => {});
+    clearPreview();
     schedulePreview();
-  });
+    if (result.missing?.length) $("#manualEditor").open = true;
+
+    const photoMessage =
+      result.photo_count === 3
+        ? "As três fotos também foram recuperadas."
+        : `Foram recuperadas ${result.photo_count || 0} de 3 fotos; selecione as restantes.`;
+    setMessage(
+      `PowerPoint aberto. Revise as informações antes de gerar novamente. ${photoMessage}`,
+      result.missing?.length ? "error" : "success"
+    );
+    setDraftStatus("PowerPoint importado e salvo neste aparelho.", "success");
+  } catch (error) {
+    setMessage(error.message, "error");
+  } finally {
+    event.target.value = "";
+    setBusy(false);
+  }
 });
 $("#quickText").addEventListener("input", () => {
   if (state.paymentRequired) return;

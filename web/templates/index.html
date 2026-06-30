@@ -10,7 +10,7 @@
   <title>Editor Conquistando</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icon.png">
-  <link rel="stylesheet" href="/static/styles.css?v=31">
+  <link rel="stylesheet" href="/static/styles.css?v=32">
 </head>
 <body>
   <header class="topbar">
@@ -128,6 +128,17 @@
           </div>
         </div>
       </details>
+      <div class="powerpoint-import">
+        <div>
+          <strong>Abrir PowerPoint para editar</strong>
+          <small>Recupera informações e fotos de um arquivo .pptx já gerado.</small>
+        </div>
+        <button id="importPowerPointButton" type="button" class="secondary small">
+          Importar .pptx
+        </button>
+        <input id="powerPointImport" type="file"
+          accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation">
+      </div>
       <div class="text-format-toolbar" aria-label="Formatação do texto">
         <button id="boldButton" type="button" class="bold-button" title="Aplicar negrito ao trecho selecionado">
           <b>B</b> Negrito
@@ -304,6 +315,6 @@ Pares:"></textarea>
     <a id="subscriptionPaymentLink" class="payment-button">Ir para pagamento</a>
   </dialog>
 
-  <script src="/static/app.js?v=31" defer></script>
+  <script src="/static/app.js?v=32" defer></script>
 </body>
 </html>

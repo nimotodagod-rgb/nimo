@@ -784,7 +784,11 @@ $("#saveFixedHeader").addEventListener("click", () => {
     state.fixedHeader = fixed;
     localStorage.setItem(FIXED_HEADER_KEY, JSON.stringify(fixed));
     updateDraftsWithFixedHeader();
-    setFixedHeaderStatus("Salvo para BR SPORT e ACTVITTA.", "success");
+    setFixedHeaderStatus("Representante salvo para BR SPORT e ACTVITTA.", "success");
+    setMessage(
+      "Representante confirmado. Revise código, razão social, regional e microrregião antes de gerar o PowerPoint.",
+      "success"
+    );
   } catch (_error) {
     setFixedHeaderStatus("Não foi possível salvar neste aparelho.", "error");
   }
@@ -805,7 +809,7 @@ $("#clearFixedHeader").addEventListener("click", () => {
   fillFixedHeaderForm();
   persistDraftMetadata();
   loadActiveDraft();
-  setFixedHeaderStatus("Dados fixos removidos.");
+  setFixedHeaderStatus("Representante removido.");
 });
 $("#confirmPin").addEventListener("click", async () => {
   const pin = $("#pin").value.trim();
@@ -1025,7 +1029,7 @@ async function initializeDraftStorage() {
   restoreFixedHeader();
   fillFixedHeaderForm();
   if (Object.values(state.fixedHeader).every((value) => String(value).trim())) {
-    setFixedHeaderStatus("Dados fixos carregados.", "success");
+    setFixedHeaderStatus("Representante carregado.", "success");
   }
   restoreDraftMetadata();
   setDraftStatus("Restaurando o rascunho deste aparelho…");

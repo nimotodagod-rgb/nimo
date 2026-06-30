@@ -160,21 +160,57 @@ textarea:focus, input:focus {
 #parseStatus { color: var(--green); font-size: 12px; }
 details {
   margin-top: 14px;
-  border: 1px solid var(--line);
+  border: 1px solid #454b58;
   border-radius: 12px;
   overflow: hidden;
   background: rgba(32,35,43,.62);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
 }
 summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   list-style: none;
   cursor: pointer;
   padding: 13px 15px;
-  color: var(--muted);
+  color: #eef1f6;
   font-size: 13px;
   font-weight: 800;
+  background: linear-gradient(180deg, #343946, #292d36);
+  transition: transform .12s, filter .12s, background .12s, border-color .12s;
+}
+summary::before {
+  content: "＋";
+  width: 22px;
+  height: 22px;
+  display: grid;
+  flex: 0 0 22px;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--orange);
+  color: #171717;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
 }
 summary::-webkit-details-marker { display: none; }
-details[open] summary { border-bottom: 1px solid var(--line); color: var(--text); }
+summary:hover { filter: brightness(1.12); }
+details[open] summary {
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  background: linear-gradient(180deg, #3b414f, #2d323d);
+}
+details[open] summary::before {
+  content: "✓";
+  background: var(--green);
+}
+#fixedHeaderSettings summary::before {
+  background: #8ee6ff;
+}
+#templateHelper summary::before,
+.usage-guide summary::before {
+  background: var(--orange);
+}
 .template-helper-body {
   display: grid;
   gap: 10px;

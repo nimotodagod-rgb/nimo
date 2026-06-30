@@ -115,13 +115,13 @@ function setLoginStatus(text, kind = "") {
 
 function setPaymentLink(url = "") {
   const button = $("#paymentButton");
-  if (!url) {
+  if (!url && !state.paymentRequired) {
     button.hidden = true;
     button.removeAttribute("href");
     return;
   }
   button.hidden = false;
-  button.href = url;
+  button.href = url || "#";
 }
 
 function setTopPayment(session = {}) {
@@ -129,7 +129,7 @@ function setTopPayment(session = {}) {
   const needsPayment = Boolean(session.payment_required);
   const url = session.payment_url || "";
   button.hidden = !needsPayment;
-  button.classList.toggle("disabled", needsPayment && !url);
+  button.classList.toggle("disabled", false);
   if (!needsPayment) {
     button.removeAttribute("href");
     return;
@@ -138,7 +138,37 @@ function setTopPayment(session = {}) {
   if (url) {
     button.href = url;
   } else {
-    button.removeAttribute("href");
+    button.href = "#";
+  }
+}
+
+async function startSubscriptionCheckout(event) {
+  event?.preventDefault();
+  const buttons = [$("#topPaymentButton"), $("#paymentButton"), $("#subscriptionPaymentLink")].filter(Boolean);
+  buttons.forEach((button) => button.classList.add("disabled"));
+  setMessage("Criando assinatura no Mercado Pago…");
+  setLoginStatus("Criando assinatura no Mercado Pago…");
+  try {
+    if (state.paymentUrl) {
+      window.location.href = state.paymentUrl;
+      return;
+    }
+    const response = await fetch("/api/create-subscription", { method: "POST" });
+    const result = await response.json();
+    if (result.already_active) {
+      await refreshAccess();
+      setMessage("Assinatura já liberada.", "success");
+      return;
+    }
+    if (!response.ok || !result.ok || !result.init_point) {
+      throw new Error(result.error || "Não foi possível criar a assinatura.");
+    }
+    window.location.href = result.init_point;
+  } catch (error) {
+    setMessage(error.message, "error");
+    setLoginStatus(error.message, "error");
+  } finally {
+    buttons.forEach((button) => button.classList.remove("disabled"));
   }
 }
 
@@ -187,9 +217,8 @@ function syncAccountRazao(session = {}) {
 function showSubscriptionRequired() {
   const url = state.paymentUrl || "";
   const link = $("#subscriptionPaymentLink");
-  link.hidden = !url;
-  if (url) link.href = url;
-  else link.removeAttribute("href");
+  link.hidden = false;
+  link.href = url || "#";
   setMessage("É necessário realizar a assinatura para editar e gerar PowerPoint.", "error");
   const dialog = $("#subscriptionDialog");
   if (dialog?.showModal) dialog.showModal();
@@ -1526,6 +1555,10 @@ document.addEventListener("webkitfullscreenchange", handleFullscreenExit);
 $("#installHelp").addEventListener("click", () => $("#installDialog").showModal());
 $("#closeInstall").addEventListener("click", () => $("#installDialog").close());
 $("#closeSubscriptionDialog").addEventListener("click", () => $("#subscriptionDialog").close());
+["#topPaymentButton", "#paymentButton", "#subscriptionPaymentLink"].forEach((selector) => {
+  const button = $(selector);
+  if (button) button.addEventListener("click", startSubscriptionCheckout);
+});
 
 function saveBeforeLeaving() {
   try {

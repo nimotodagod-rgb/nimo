@@ -9,5 +9,15 @@ services:
     envVars:
       - key: APP_PIN
         sync: false
+      - key: MERCADOPAGO_ACCESS_TOKEN
+        sync: false
+      - key: MERCADOPAGO_WEBHOOK_SECRET
+        sync: false
+      - key: APP_PLAN_AMOUNT
+        sync: false
+      - key: APP_PLAN_TITLE
+        value: "Editor Conquistando Mensal"
+      - key: APP_PUBLIC_URL
+        value: "https://editor-conquistando.onrender.com"
       - key: PORT
         value: "10000"

@@ -13,6 +13,8 @@ import tempfile
 import threading
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from urllib import error as urlerror
+from urllib import request as urlrequest
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from flask import Flask, jsonify, render_template, request, send_file, session
@@ -77,6 +79,82 @@ def check_pin() -> bool:
 
 def payment_url() -> str:
     return os.environ.get("APP_PAYMENT_URL", "").strip()
+
+
+def public_base_url() -> str:
+    configured = os.environ.get("APP_PUBLIC_URL", "").strip()
+    if configured:
+        return configured.rstrip("/")
+    return request.host_url.rstrip("/")
+
+
+def mercadopago_access_token() -> str:
+    return os.environ.get("MERCADOPAGO_ACCESS_TOKEN", os.environ.get("MP_ACCESS_TOKEN", "")).strip()
+
+
+def plan_amount() -> float:
+    raw = os.environ.get("APP_PLAN_AMOUNT", "").strip().replace(",", ".")
+    if not raw:
+        raise ValueError("Configure APP_PLAN_AMOUNT no Render antes de criar assinaturas.")
+    amount = float(raw)
+    if amount <= 0:
+        raise ValueError("APP_PLAN_AMOUNT precisa ser maior que zero.")
+    return round(amount, 2)
+
+
+def mp_api(method: str, path: str, payload: dict | None = None) -> dict:
+    token = mercadopago_access_token()
+    if not token:
+        raise RuntimeError("Configure MERCADOPAGO_ACCESS_TOKEN no Render.")
+    data = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = urlrequest.Request(
+        f"https://api.mercadopago.com{path}",
+        data=data,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urlrequest.urlopen(req, timeout=30) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
+    except urlerror.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Mercado Pago recusou a solicitação: {detail[:500]}") from exc
+
+
+def webhook_data_id(payload: dict) -> str:
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if isinstance(data, dict) and data.get("id"):
+        return str(data["id"])
+    for key in ("id", "resource"):
+        if request.args.get(key):
+            return str(request.args[key])
+    return ""
+
+
+def validate_mp_webhook_signature(payload: dict) -> bool:
+    secret = os.environ.get("MERCADOPAGO_WEBHOOK_SECRET", os.environ.get("MP_WEBHOOK_SECRET", "")).strip()
+    if not secret:
+        return True
+    signature = request.headers.get("x-signature", "")
+    request_id = request.headers.get("x-request-id", "")
+    parts = dict(
+        item.split("=", 1)
+        for item in signature.split(",")
+        if "=" in item
+    )
+    ts = parts.get("ts", "")
+    received = parts.get("v1", "")
+    data_id = webhook_data_id(payload)
+    if not ts or not received or not request_id or not data_id:
+        return False
+    manifest = f"id:{data_id};request-id:{request_id};ts:{ts};"
+    calculated = hmac.new(secret.encode("utf-8"), manifest.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(calculated, received)
 
 
 def payment_link_for(email: str = "", name: str = "") -> str:
@@ -221,6 +299,27 @@ def save_account_razao(email: str, razao: str) -> str:
         return user["razao_social"]
 
 
+def set_account_active(email: str, active: bool, **extra: str) -> bool:
+    normalized_email = str(email or "").strip().casefold()
+    if not normalized_email:
+        return False
+    path = accounts_file()
+    with accounts_lock:
+        users = raw_registered_users()
+        user = users.get(normalized_email)
+        if not isinstance(user, dict):
+            user = {"email": normalized_email, "name": normalized_email, "created_at": datetime.now(timezone.utc).isoformat()}
+        user["active"] = bool(active)
+        user["updated_at"] = datetime.now(timezone.utc).isoformat()
+        for key, value in extra.items():
+            if value is not None:
+                user[key] = str(value)
+        users[normalized_email] = user
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
+    return True
+
+
 def known_users() -> dict[str, dict]:
     raw_registered = raw_registered_users()
     users = registered_users()
@@ -231,8 +330,27 @@ def known_users() -> dict[str, dict]:
             razao = str(extra.get("razao_social", "")).strip()
             if razao:
                 user = {**user, "razao_social": razao}
+            if "active" in extra:
+                user = {**user, "active": bool(extra.get("active"))}
+            for key in ("mercadopago_subscription_id", "mercadopago_payment_id", "payment_status"):
+                if extra.get(key):
+                    user = {**user, key: str(extra.get(key))}
         users[email] = user
     return users
+
+
+def refresh_session_from_account() -> None:
+    if session.get("access") == "dev":
+        return
+    email = str(session.get("email", "")).strip().casefold()
+    if not email:
+        return
+    user = known_users().get(email)
+    if not user:
+        return
+    session["name"] = user.get("name") or session.get("name") or email
+    session["razao_social"] = str(user.get("razao_social", session.get("razao_social", ""))).strip()
+    session["access"] = "user" if user.get("active") else "trial"
 
 
 def start_user_session(email: str, user: dict) -> dict:
@@ -302,12 +420,14 @@ def configured_users() -> dict[str, dict]:
 
 
 def has_access() -> bool:
+    refresh_session_from_account()
     if session.get("access") in {"dev", "user", "trial"}:
         return True
     return check_pin()
 
 
 def has_paid_access() -> bool:
+    refresh_session_from_account()
     if session.get("access") in {"dev", "user"}:
         return True
     return check_pin()
@@ -401,6 +521,7 @@ def health():
 
 @app.get("/api/session")
 def current_session():
+    refresh_session_from_account()
     role = session.get("access", "")
     paid_user = role in {"dev", "user"}
     payment_required = role == "trial"
@@ -445,6 +566,143 @@ def account_razao():
         return error(str(exc))
     session["razao_social"] = saved
     return jsonify({"ok": True, "razao_social": saved, "razao_locked": True})
+
+
+@app.post("/api/create-subscription")
+def create_subscription():
+    if not has_access():
+        return access_error()
+    refresh_session_from_account()
+    if has_paid_access():
+        return jsonify({"ok": True, "already_active": True})
+    email = str(session.get("email", "")).strip().casefold()
+    name = str(session.get("name", email)).strip() or email
+    if not email:
+        return error("Faça login antes de assinar.", 401)
+    if payment_url() and not mercadopago_access_token():
+        return jsonify({"ok": True, "init_point": payment_link_for(email, name)})
+    try:
+        amount = plan_amount()
+        payload = {
+            "reason": os.environ.get("APP_PLAN_TITLE", "Editor Conquistando Mensal").strip()
+            or "Editor Conquistando Mensal",
+            "external_reference": email,
+            "payer_email": email,
+            "back_url": public_base_url(),
+            "notification_url": f"{public_base_url()}/api/mercadopago/webhook",
+            "auto_recurring": {
+                "frequency": int(os.environ.get("APP_PLAN_FREQUENCY", "1")),
+                "frequency_type": os.environ.get("APP_PLAN_FREQUENCY_TYPE", "months"),
+                "transaction_amount": amount,
+                "currency_id": os.environ.get("APP_PLAN_CURRENCY", "BRL"),
+            },
+        }
+        created = mp_api("POST", "/preapproval", payload)
+    except ValueError as exc:
+        return error(str(exc), 500)
+    except Exception as exc:
+        app.logger.exception("mercadopago subscription creation failed")
+        return error(str(exc), 502)
+
+    subscription_id = str(created.get("id", "")).strip()
+    if subscription_id:
+        set_account_active(
+            email,
+            False,
+            mercadopago_subscription_id=subscription_id,
+            payment_status=str(created.get("status", "pending")),
+        )
+    init_point = created.get("init_point") or created.get("sandbox_init_point")
+    if not init_point:
+        return error("Mercado Pago não retornou o link da assinatura.", 502)
+    return jsonify({"ok": True, "init_point": init_point, "subscription_id": subscription_id})
+
+
+def email_from_mp_resource(resource: dict) -> str:
+    for key in ("external_reference", "payer_email"):
+        value = str(resource.get(key, "") or "").strip().casefold()
+        if "@" in value:
+            return value
+    payer = resource.get("payer")
+    if isinstance(payer, dict):
+        value = str(payer.get("email", "") or "").strip().casefold()
+        if "@" in value:
+            return value
+    metadata = resource.get("metadata")
+    if isinstance(metadata, dict):
+        value = str(metadata.get("email", "") or "").strip().casefold()
+        if "@" in value:
+            return value
+    return ""
+
+
+def process_mp_resource(kind: str, resource_id: str) -> dict:
+    kind = (kind or "").lower()
+    if not resource_id:
+        return {"processed": False, "reason": "missing id"}
+
+    if kind in {"preapproval", "subscription_preapproval", "plan", "plans", "plan_subscription"}:
+        resource = mp_api("GET", f"/preapproval/{resource_id}")
+        email = email_from_mp_resource(resource)
+        status = str(resource.get("status", "")).lower()
+        active = status in {"authorized", "active"}
+        if email:
+            set_account_active(
+                email,
+                active,
+                mercadopago_subscription_id=str(resource.get("id", resource_id)),
+                payment_status=status,
+            )
+        return {"processed": True, "kind": "preapproval", "email": email, "status": status, "active": active}
+
+    if kind in {"payment", "payments"}:
+        resource = mp_api("GET", f"/v1/payments/{resource_id}")
+        email = email_from_mp_resource(resource)
+        status = str(resource.get("status", "")).lower()
+        active = status == "approved"
+        if email and active:
+            set_account_active(
+                email,
+                True,
+                mercadopago_payment_id=str(resource.get("id", resource_id)),
+                payment_status=status,
+            )
+        return {"processed": True, "kind": "payment", "email": email, "status": status, "active": active}
+
+    if kind in {"subscription_authorized_payment", "authorized_payment", "authorized_payments"}:
+        resource = mp_api("GET", f"/authorized_payments/{resource_id}")
+        preapproval_id = str(resource.get("preapproval_id", "") or "").strip()
+        if preapproval_id:
+            return process_mp_resource("preapproval", preapproval_id)
+        email = email_from_mp_resource(resource)
+        status = str(resource.get("status", "")).lower()
+        active = status in {"processed", "approved", "authorized"}
+        if email and active:
+            set_account_active(email, True, payment_status=status)
+        return {"processed": True, "kind": "authorized_payment", "email": email, "status": status, "active": active}
+
+    return {"processed": False, "kind": kind, "id": resource_id}
+
+
+@app.post("/api/mercadopago/webhook")
+def mercadopago_webhook():
+    payload = request.get_json(silent=True) or {}
+    if not validate_mp_webhook_signature(payload):
+        return error("Assinatura do webhook inválida.", 401)
+    kind = str(
+        payload.get("type")
+        or payload.get("topic")
+        or request.args.get("type")
+        or request.args.get("topic")
+        or ""
+    )
+    resource_id = webhook_data_id(payload)
+    try:
+        processed = process_mp_resource(kind, resource_id)
+        app.logger.info("mercadopago webhook processed: %s", processed)
+    except Exception:
+        app.logger.exception("mercadopago webhook failed")
+    return jsonify({"ok": True})
 
 
 @app.post("/api/login")

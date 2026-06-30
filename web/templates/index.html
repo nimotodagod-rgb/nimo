@@ -143,18 +143,21 @@ Pares:"></textarea>
         <span>3</span>
         <div>
           <h2>Envie as três fotos</h2>
-          <p>Selecione as três juntas. Elas serão recortadas e salvas neste aparelho.</p>
+          <p>Selecione as três juntas ou toque nos quadros 1, 2 e 3 para trocar uma por vez.</p>
         </div>
       </div>
       <label class="upload">
         <input id="photos" type="file" accept="image/*" multiple>
         <strong>Selecionar as 3 fotos</strong>
-        <small>PNG, JPG, WEBP ou imagem da Fototeca</small>
+        <small>Também dá para tocar direto no quadro da foto 1, 2 ou 3</small>
       </label>
+      <input class="single-photo-input" id="photoSingle0" type="file" accept="image/*">
+      <input class="single-photo-input" id="photoSingle1" type="file" accept="image/*">
+      <input class="single-photo-input" id="photoSingle2" type="file" accept="image/*">
       <div class="photo-grid" id="photoGrid">
-        <div class="photo-slot"><b>1</b><span>Nenhuma foto</span></div>
-        <div class="photo-slot"><b>2</b><span>Nenhuma foto</span></div>
-        <div class="photo-slot"><b>3</b><span>Nenhuma foto</span></div>
+        <button class="photo-slot" type="button" data-photo-index="0"><b>1</b><span>Escolher foto 1</span></button>
+        <button class="photo-slot" type="button" data-photo-index="1"><b>2</b><span>Escolher foto 2</span></button>
+        <button class="photo-slot" type="button" data-photo-index="2"><b>3</b><span>Escolher foto 3</span></button>
       </div>
 
       <details class="usage-guide">

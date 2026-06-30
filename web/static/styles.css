@@ -108,22 +108,29 @@ h2 { margin: 0; font-size: 17px; }
   gap: 7px;
 }
 button, .ghost {
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 10px;
   cursor: pointer;
   text-decoration: none;
   font-weight: 800;
-  transition: transform .12s, filter .12s, background .12s;
+  transition: transform .12s, filter .12s, background .12s, border-color .12s, box-shadow .12s;
 }
 button:active, .ghost:active { transform: scale(.985); }
 .brand-option, .secondary, .ghost {
+  border-color: #454b58;
   color: var(--text);
   background: var(--input);
 }
-.brand-option { padding: 13px; color: var(--muted); }
+.brand-option {
+  padding: 13px;
+  color: var(--muted);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
 .brand-option.active {
+  border-color: rgba(255,176,46,.72);
   color: white;
   background: linear-gradient(110deg, #a62bbb, var(--pink));
+  box-shadow: 0 0 0 3px rgba(217,79,232,.16), 0 12px 28px rgba(217,79,232,.22);
 }
 textarea, input {
   width: 100%;
@@ -250,10 +257,12 @@ details h3 {
   border-radius: 13px;
   background: rgba(41,45,54,.7);
   cursor: pointer;
+  transition: transform .12s, filter .12s, border-color .12s, box-shadow .12s;
 }
 .upload input { display: none; }
 .upload strong { color: white; }
 .upload small { color: var(--muted); font-weight: 500; }
+.single-photo-input { display: none; }
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -266,9 +275,11 @@ details h3 {
   place-items: center;
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid #4b5261;
   border-radius: 10px;
-  background: #111217;
+  background: linear-gradient(180deg, #1d2029, #111217);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
 }
 .photo-slot b {
   position: absolute;
@@ -282,10 +293,29 @@ details h3 {
   background: rgba(0,0,0,.72);
   z-index: 2;
 }
+.photo-slot.has-photo {
+  border-color: rgba(118,213,139,.72);
+  box-shadow: 0 0 0 2px rgba(118,213,139,.08), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.photo-slot.has-photo::after {
+  content: "trocar";
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  z-index: 2;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.68);
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
 .photo-slot span {
   max-width: 90%;
-  color: var(--muted);
-  font-size: 10px;
+  color: #f0f2f6;
+  font-size: 11px;
+  font-weight: 800;
   text-align: center;
 }
 .photo-slot img { width: 100%; height: 100%; object-fit: cover; }
@@ -302,8 +332,16 @@ details h3 {
 .primary {
   color: #171717;
   background: linear-gradient(105deg, var(--orange), #ff7335 62%, var(--pink));
+  box-shadow: 0 12px 28px rgba(255,176,46,.22);
 }
-.secondary:hover, .ghost:hover { filter: brightness(1.15); }
+.secondary {
+  background: linear-gradient(180deg, #343946, #292d36);
+}
+.secondary:hover, .ghost:hover, .brand-option:hover, .photo-slot:hover, .upload:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
+.primary:hover { filter: brightness(1.08); }
 .small { padding: 9px 12px; font-size: 12px; }
 .message { min-height: 20px; margin: 12px 0 0; color: var(--muted); font-size: 13px; }
 .message.error { color: #ff7979; }

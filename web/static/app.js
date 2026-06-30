@@ -240,12 +240,16 @@ function openPhotoDatabase() {
 
 async function saveBrandPhotos(brand) {
   const database = await openPhotoDatabase();
-  const photos = state.drafts[brand].photos.map((file, index) => ({
-    blob: file,
-    name: file.name || `foto-${index + 1}.jpg`,
-    type: file.type || "image/jpeg",
-    lastModified: file.lastModified || Date.now(),
-  }));
+  const photos = normalizePhotoList(state.drafts[brand].photos).map((file, index) =>
+    file
+      ? {
+          blob: file,
+          name: file.name || `foto-${index + 1}.jpg`,
+          type: file.type || "image/jpeg",
+          lastModified: file.lastModified || Date.now(),
+        }
+      : null
+  );
   await new Promise((resolve, reject) => {
     const transaction = database.transaction(PHOTO_STORE, "readwrite");
     transaction.objectStore(PHOTO_STORE).put({ brand, photos });
@@ -266,12 +270,13 @@ async function readBrandPhotos(brand) {
     request.onerror = () => reject(request.error || new Error("Falha ao ler as fotos."));
   });
   if (!record?.photos?.length) return [];
-  return record.photos.map(
-    (item, index) =>
-      new File([item.blob], item.name || `foto-${index + 1}.jpg`, {
+  return normalizePhotoList(record.photos).map((item, index) =>
+    item?.blob
+      ? new File([item.blob], item.name || `foto-${index + 1}.jpg`, {
         type: item.type || item.blob?.type || "image/jpeg",
         lastModified: item.lastModified || Date.now(),
       })
+      : null
   );
 }
 
@@ -296,6 +301,14 @@ function setBusy(value) {
   $("#busy").hidden = !value;
   $("#previewButton").disabled = value;
   $("#generateButton").disabled = value;
+}
+
+function normalizePhotoList(photos = []) {
+  return [0, 1, 2].map((index) => photos[index] || null);
+}
+
+function hasThreePhotos(photos = []) {
+  return normalizePhotoList(photos).every(Boolean);
 }
 
 function buildCaptionEditor() {
@@ -464,20 +477,36 @@ async function interpret(force = false) {
 }
 
 function renderPhotos() {
-  const photos = activeDraft().photos;
+  const photos = normalizePhotoList(activeDraft().photos);
   const slots = $$("#photoGrid .photo-slot");
   slots.forEach((slot, index) => {
     const file = photos[index];
     const number = `<b>${index + 1}</b>`;
     if (!file) {
-      slot.innerHTML = `${number}<span>Nenhuma foto</span>`;
+      slot.classList.remove("has-photo");
+      slot.innerHTML = `${number}<span>Escolher foto ${index + 1}</span>`;
       return;
     }
     const url = URL.createObjectURL(file);
+    slot.classList.add("has-photo");
     slot.innerHTML = `${number}<img alt="Foto ${index + 1}">`;
     slot.querySelector("img").src = url;
     slot.querySelector("img").onload = () => URL.revokeObjectURL(url);
   });
+}
+
+async function savePhotoSelection(brand, successMessage) {
+  renderPhotos();
+  schedulePreview();
+  setDraftStatus("Salvando fotos…");
+  try {
+    await saveBrandPhotos(brand);
+    setMessage(successMessage, "success");
+    setDraftStatus("Texto e fotos salvos neste aparelho.", "success");
+  } catch (_error) {
+    setMessage("As fotos foram selecionadas, mas não puderam ser salvas.", "error");
+    setDraftStatus("Mantenha o aplicativo aberto até gerar o PowerPoint.", "error");
+  }
 }
 
 function element(tag, className = "", text = "") {
@@ -527,7 +556,7 @@ function createPhotoSlide(data) {
   const slide = element("article", "ppt-slide");
   addSlideHeader(slide, "Imagens", data);
   const grid = element("div", "ppt-photos");
-  activeDraft().photos.forEach((file, index) => {
+  normalizePhotoList(activeDraft().photos).forEach((file, index) => {
     const figure = element("figure", "ppt-photo");
     const image = element("img");
     image.alt = `Foto ${index + 1}`;
@@ -565,7 +594,7 @@ function validatePreviewData(data) {
 
 async function renderPreview({ automatic = false } = {}) {
   const draft = activeDraft();
-  if (draft.photos.length !== 3) throw new Error("Selecione exatamente três fotos.");
+  if (!hasThreePhotos(draft.photos)) throw new Error("Selecione exatamente três fotos.");
   await interpret(false);
   const data = collectFields();
   draft.data = data;
@@ -591,7 +620,7 @@ async function renderPreview({ automatic = false } = {}) {
 let previewTimer = null;
 function schedulePreview() {
   clearTimeout(previewTimer);
-  if (activeDraft().photos.length !== 3 || !$("#quickText").value.trim()) return;
+  if (!hasThreePhotos(activeDraft().photos) || !$("#quickText").value.trim()) return;
   previewTimer = setTimeout(async () => {
     try {
       await renderPreview({ automatic: true });
@@ -629,7 +658,7 @@ async function prepareBrandDraft(brand) {
   const draft = state.drafts[brand];
   const text = draft.text.trim();
   if (!text) throw new Error(`${brandLabel(brand)}: cole as informações.`);
-  if (draft.photos.length !== 3) {
+  if (!hasThreePhotos(draft.photos)) {
     throw new Error(`${brandLabel(brand)}: selecione exatamente três fotos.`);
   }
   if (!draft.parsed || draft.textVersion !== text) {
@@ -662,7 +691,7 @@ async function processBrandPowerPoint(brand, draft) {
   form.append("mode", "generate");
   form.append("text", draft.text);
   form.append("parsed_json", JSON.stringify(draft.data));
-  draft.photos.forEach((photo) => form.append("photos", photo, photo.name));
+  normalizePhotoList(draft.photos).forEach((photo) => form.append("photos", photo, photo.name));
 
   const response = await fetch("/api/process", {
     method: "POST",
@@ -841,7 +870,7 @@ $("#photos").addEventListener("change", async (event) => {
   const brand = state.brand;
   const draft = activeDraft();
   if (files.length !== 3) {
-    draft.photos = [];
+    draft.photos = [null, null, null];
     renderPhotos();
     setMessage("Selecione exatamente três fotos.", "error");
     try {
@@ -851,18 +880,26 @@ $("#photos").addEventListener("change", async (event) => {
     }
     return;
   }
-  draft.photos = files;
-  renderPhotos();
-  schedulePreview();
-  setDraftStatus("Salvando as três fotos…");
-  try {
-    await saveBrandPhotos(brand);
-    setMessage("Três fotos selecionadas.", "success");
-    setDraftStatus("Texto e fotos salvos neste aparelho.", "success");
-  } catch (_error) {
-    setMessage("As fotos foram selecionadas, mas não puderam ser salvas.", "error");
-    setDraftStatus("Mantenha o aplicativo aberto até gerar o PowerPoint.", "error");
-  }
+  draft.photos = normalizePhotoList(files);
+  await savePhotoSelection(brand, "Três fotos selecionadas.");
+});
+$$("#photoGrid .photo-slot").forEach((slot) => {
+  slot.addEventListener("click", () => {
+    const index = Number(slot.dataset.photoIndex);
+    $(`#photoSingle${index}`).click();
+  });
+});
+$$(".single-photo-input").forEach((input, index) => {
+  input.addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const brand = state.brand;
+    const draft = activeDraft();
+    draft.photos = normalizePhotoList(draft.photos);
+    draft.photos[index] = file;
+    event.target.value = "";
+    await savePhotoSelection(brand, `Foto ${index + 1} selecionada.`);
+  });
 });
 $("#previewButton").addEventListener("click", guardedPreview);
 $("#generateButton").addEventListener("click", () => $("#generateDialog").showModal());

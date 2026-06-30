@@ -49,6 +49,7 @@ const state = {
   },
   previewUrls: [],
   slideIndex: 0,
+  draftsInitialized: false,
 };
 
 const fieldIds = {
@@ -100,6 +101,83 @@ function setTemplateStatus(text, kind = "") {
   const status = $("#templateStatus");
   status.textContent = text;
   status.className = kind;
+}
+
+function setLoginStatus(text, kind = "") {
+  const status = $("#loginStatus");
+  status.textContent = text;
+  status.className = `message ${kind}`.trim();
+}
+
+function setPaymentLink(url = "") {
+  const button = $("#paymentButton");
+  if (!url) {
+    button.hidden = true;
+    button.removeAttribute("href");
+    return;
+  }
+  button.hidden = false;
+  button.href = url;
+}
+
+function setAuthenticated(session = {}) {
+  $("#authPanel").hidden = true;
+  $("#appShell").hidden = false;
+  $("#sessionChip").hidden = false;
+  $("#sessionLabel").textContent =
+    session.role === "dev"
+      ? "Desenvolvedor"
+      : session.name || session.email || "Usuário liberado";
+  setLoginStatus("");
+}
+
+function setLocked(session = {}) {
+  $("#authPanel").hidden = false;
+  $("#appShell").hidden = true;
+  $("#sessionChip").hidden = true;
+  setPaymentLink(session.payment_url || "");
+}
+
+async function readSession() {
+  const response = await fetch("/api/session");
+  const result = await response.json();
+  if (!response.ok || !result.ok) throw new Error("Não foi possível verificar o acesso.");
+  return result;
+}
+
+async function unlockWithSavedPin() {
+  const savedPin = localStorage.getItem("conquistando-pin") || "";
+  if (!savedPin) return false;
+  const response = await fetch("/api/dev-pin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pin: savedPin }),
+  });
+  return response.ok;
+}
+
+async function initializeEditorOnce() {
+  if (state.draftsInitialized) return;
+  state.draftsInitialized = true;
+  await initializeDraftStorage();
+}
+
+async function refreshAccess() {
+  try {
+    let session = await readSession();
+    if (!session.has_access && (await unlockWithSavedPin())) {
+      session = await readSession();
+    }
+    if (session.has_access) {
+      setAuthenticated(session);
+      await initializeEditorOnce();
+    } else {
+      setLocked(session);
+    }
+  } catch (error) {
+    setLocked({});
+    setLoginStatus(error.message, "error");
+  }
 }
 
 async function copyTextToClipboard(text) {
@@ -825,19 +903,57 @@ $("#confirmPin").addEventListener("click", async () => {
   status.textContent = "Verificando…";
   status.className = "";
   try {
-    const response = await fetch("/api/parse", {
+    const response = await fetch("/api/dev-pin", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-App-Pin": pin },
-      body: JSON.stringify({ text: "" }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin }),
     });
     if (!response.ok) throw new Error("PIN incorreto");
     localStorage.setItem("conquistando-pin", pin);
-    status.textContent = "PIN confirmado";
+    status.textContent = "Acesso desenvolvedor liberado";
     status.className = "success";
+    await refreshAccess();
   } catch (_error) {
     status.textContent = "PIN incorreto";
     status.className = "error";
   }
+});
+$("#loginForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setLoginStatus("Verificando acesso…");
+  setPaymentLink("");
+  try {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: $("#loginEmail").value.trim(),
+        password: $("#loginPassword").value,
+      }),
+    });
+    const result = await response.json();
+    if (response.status === 402 && result.payment_url) {
+      setLoginStatus("Acesso ainda não liberado. Indo para o pagamento…", "error");
+      setPaymentLink(result.payment_url);
+      window.location.href = result.payment_url;
+      return;
+    }
+    if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível entrar.");
+    $("#loginPassword").value = "";
+    setLoginStatus("Acesso liberado.", "success");
+    await refreshAccess();
+  } catch (error) {
+    setLoginStatus(error.message, "error");
+  }
+});
+$("#logoutButton").addEventListener("click", async () => {
+  await fetch("/api/logout", { method: "POST" }).catch(() => {});
+  localStorage.removeItem("conquistando-pin");
+  $("#pin").value = "";
+  state.draftsInitialized = false;
+  $("#appShell").hidden = true;
+  $("#sessionChip").hidden = true;
+  await refreshAccess();
 });
 $$(".brand-option").forEach((button) => {
   button.addEventListener("click", () => {
@@ -1055,4 +1171,4 @@ async function initializeDraftStorage() {
   }
 }
 
-initializeDraftStorage();
+refreshAccess();

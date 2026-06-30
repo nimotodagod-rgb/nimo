@@ -56,7 +56,25 @@ button, summary, .upload { -webkit-tap-highlight-color: transparent; }
   letter-spacing: .14em;
 }
 .topbar h1 { margin: 0; font-size: 20px; }
-.topbar > button { margin-left: auto; }
+.session-chip {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 7px 6px 10px;
+  border: 1px solid #454b58;
+  border-radius: 999px;
+  background: rgba(41,45,54,.82);
+}
+.session-chip span {
+  max-width: 190px;
+  overflow: hidden;
+  color: #dfe3ea;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 main {
   width: min(1480px, 100%);
   margin: auto;
@@ -65,6 +83,56 @@ main {
   grid-template-columns: minmax(380px, 520px) minmax(520px, 1fr);
   gap: 26px;
   align-items: start;
+}
+.auth-panel {
+  min-height: calc(100vh - 87px);
+  display: grid;
+  place-items: center;
+  padding: 28px;
+}
+.auth-card {
+  width: min(500px, 100%);
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(23,25,31,.97);
+  box-shadow: 0 18px 60px rgba(0,0,0,.28);
+}
+.auth-card h2 {
+  margin: 0;
+  font-size: 25px;
+}
+.eyebrow {
+  margin: 0 0 7px;
+  color: var(--orange);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .16em;
+}
+.auth-copy {
+  margin: 8px 0 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.login-form {
+  display: grid;
+  gap: 12px;
+}
+.payment-button {
+  display: inline-flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px 15px;
+  border-radius: 12px;
+  background: linear-gradient(105deg, var(--orange), #ff7335 62%, var(--pink));
+  color: #171717;
+  font-weight: 900;
+  text-decoration: none;
+}
+.dev-access {
+  margin-top: 18px;
 }
 .editor, .preview {
   background: rgba(23,25,31,.96);

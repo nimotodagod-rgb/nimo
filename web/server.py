@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import hmac
 import json
 import os
 import shutil
@@ -10,7 +11,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, jsonify, render_template, request, send_file, session
 from PIL import Image, ImageOps
 
 from ooxml_worker import build_pptx
@@ -35,6 +36,7 @@ BRAND_FILES = {
 }
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
+app.secret_key = os.environ.get("APP_SECRET_KEY", os.environ.get("SECRET_KEY", "conquistando-dev-secret"))
 app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024
 generation_lock = threading.Lock()
 
@@ -53,9 +55,80 @@ def libreoffice_paths() -> tuple[str, str]:
     return soffice, worker_python
 
 
-def check_pin() -> bool:
+def check_pin_value(pin: str) -> bool:
     expected = os.environ.get("APP_PIN", "").strip()
-    return not expected or request.headers.get("X-App-Pin", "").strip() == expected
+    if not expected:
+        return False
+    return hmac.compare_digest(str(pin or "").strip(), expected)
+
+
+def check_pin() -> bool:
+    return check_pin_value(request.headers.get("X-App-Pin", ""))
+
+
+def payment_url() -> str:
+    return os.environ.get("APP_PAYMENT_URL", "").strip()
+
+
+def configured_users() -> dict[str, dict]:
+    raw_json = os.environ.get("APP_USERS_JSON", "").strip()
+    users: dict[str, dict] = {}
+    if raw_json:
+        try:
+            parsed = json.loads(raw_json)
+            if isinstance(parsed, dict):
+                parsed = [
+                    {"email": email, **(data if isinstance(data, dict) else {})}
+                    for email, data in parsed.items()
+                ]
+            for item in parsed if isinstance(parsed, list) else []:
+                if not isinstance(item, dict):
+                    continue
+                email = str(item.get("email", "")).strip().casefold()
+                password = str(item.get("password", ""))
+                if email and password:
+                    users[email] = {
+                        "password": password,
+                        "active": bool(item.get("active", True)),
+                        "name": str(item.get("name", email)).strip() or email,
+                    }
+        except json.JSONDecodeError:
+            app.logger.warning("APP_USERS_JSON invÃ¡lido.")
+
+    raw_users = os.environ.get("APP_USERS", "").strip()
+    if raw_users:
+        for chunk in raw_users.split(","):
+            parts = [part.strip() for part in chunk.split(":")]
+            if len(parts) < 2:
+                continue
+            email, password = parts[0].casefold(), parts[1]
+            active = len(parts) < 3 or parts[2].casefold() not in {
+                "0",
+                "false",
+                "no",
+                "inactive",
+                "inativo",
+            }
+            if email and password:
+                users[email] = {"password": password, "active": active, "name": email}
+    return users
+
+
+def has_access() -> bool:
+    if session.get("access") in {"dev", "user"}:
+        return True
+    return check_pin()
+
+
+def access_error():
+    return jsonify(
+        {
+            "ok": False,
+            "error": "FaÃ§a login para usar o editor.",
+            "requires_login": True,
+            "payment_url": payment_url(),
+        }
+    ), 401
 
 
 def error(message: str, status: int = 400):
@@ -120,6 +193,67 @@ def health():
     return jsonify({"ok": True})
 
 
+@app.get("/api/session")
+def current_session():
+    role = session.get("access", "")
+    return jsonify(
+        {
+            "ok": True,
+            "has_access": role in {"dev", "user"},
+            "role": role,
+            "email": session.get("email", ""),
+            "name": session.get("name", ""),
+            "payment_url": payment_url(),
+        }
+    )
+
+
+@app.post("/api/login")
+def login():
+    body = request.get_json(silent=True) or {}
+    email = str(body.get("email", "")).strip().casefold()
+    password = str(body.get("password", ""))
+    if not email or not password:
+        return error("Preencha e-mail e senha.")
+
+    users = configured_users()
+    user = users.get(email)
+    if user and not hmac.compare_digest(password, user["password"]):
+        return error("E-mail ou senha incorretos.", 401)
+    if user and user.get("active"):
+        session["access"] = "user"
+        session["email"] = email
+        session["name"] = user.get("name") or email
+        return jsonify({"ok": True, "has_access": True, "email": email, "name": session["name"]})
+
+    return jsonify(
+        {
+            "ok": False,
+            "requires_payment": True,
+            "payment_url": payment_url(),
+            "error": "Acesso ainda nÃ£o liberado. FaÃ§a o pagamento para ativar.",
+        }
+    ), 402
+
+
+@app.post("/api/dev-pin")
+def dev_pin():
+    body = request.get_json(silent=True) or {}
+    pin = str(body.get("pin", "")).strip()
+    if not check_pin_value(pin):
+        return error("PIN incorreto.", 401)
+    session["access"] = "dev"
+    session["email"] = ""
+    session["name"] = "Desenvolvedor"
+    return jsonify({"ok": True, "has_access": True, "role": "dev"})
+
+
+@app.post("/api/logout")
+def logout():
+    session.clear()
+    return jsonify({"ok": True})
+
+
 @app.get("/brand-header/<brand>.png")
 def brand_header(brand):
     if brand not in BRAND_FILES:
@@ -129,8 +263,8 @@ def brand_header(brand):
 
 @app.post("/api/parse")
 def parse_text():
-    if not check_pin():
-        return error("PIN incorreto.", 401)
+    if not has_access():
+        return access_error()
     body = request.get_json(silent=True) or {}
     values, missing = parse_quick_text(body.get("text", ""))
     return jsonify({"ok": True, "data": values, "missing": missing})
@@ -138,8 +272,8 @@ def parse_text():
 
 @app.post("/api/process")
 def process():
-    if not check_pin():
-        return error("PIN incorreto.", 401)
+    if not has_access():
+        return access_error()
     brand = request.form.get("brand", "br-sport")
     if brand not in BRAND_FILES:
         return error("Marca inválida.")

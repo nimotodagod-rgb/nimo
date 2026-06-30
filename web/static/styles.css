@@ -127,6 +127,28 @@ main {
   font-size: 13px;
   line-height: 1.5;
 }
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-bottom: 14px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(41,45,54,.58);
+}
+.auth-tabs button {
+  padding: 10px 12px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.auth-tabs button.active {
+  border-color: rgba(255,176,46,.55);
+  background: linear-gradient(105deg, var(--orange), #ff7335 62%, var(--pink));
+  color: #171717;
+  box-shadow: 0 8px 22px rgba(255,176,46,.18);
+}
 .login-form {
   display: grid;
   gap: 12px;

@@ -120,6 +120,16 @@ function setPaymentLink(url = "") {
   button.href = url;
 }
 
+function setAuthMode(mode) {
+  const signup = mode === "signup";
+  $("#loginForm").hidden = signup;
+  $("#signupForm").hidden = !signup;
+  $("#loginTab").classList.toggle("active", !signup);
+  $("#signupTab").classList.toggle("active", signup);
+  setLoginStatus("");
+  setPaymentLink("");
+}
+
 function setAuthenticated(session = {}) {
   $("#authPanel").hidden = true;
   $("#appShell").hidden = false;
@@ -948,6 +958,35 @@ $("#loginForm").addEventListener("submit", async (event) => {
     setLoginStatus(error.message, "error");
   }
 });
+$("#signupForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setLoginStatus("Criando conta…");
+  setPaymentLink("");
+  try {
+    const response = await fetch("/api/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: $("#signupName").value.trim(),
+        email: $("#signupEmail").value.trim(),
+        password: $("#signupPassword").value,
+      }),
+    });
+    const result = await response.json();
+    if (response.status === 402 && result.payment_url) {
+      setLoginStatus("Conta criada. Indo para o pagamento…", "success");
+      setPaymentLink(result.payment_url);
+      window.location.href = result.payment_url;
+      return;
+    }
+    if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível criar a conta.");
+    setLoginStatus("Conta criada.", "success");
+  } catch (error) {
+    setLoginStatus(error.message, "error");
+  }
+});
+$("#loginTab").addEventListener("click", () => setAuthMode("login"));
+$("#signupTab").addEventListener("click", () => setAuthMode("signup"));
 $("#logoutButton").addEventListener("click", async () => {
   await fetch("/api/logout", { method: "POST" }).catch(() => {});
   localStorage.removeItem("conquistando-pin");

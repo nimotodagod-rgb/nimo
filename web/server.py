@@ -10,6 +10,7 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from flask import Flask, jsonify, render_template, request, send_file, session
 from PIL import Image, ImageOps
@@ -68,6 +69,27 @@ def check_pin() -> bool:
 
 def payment_url() -> str:
     return os.environ.get("APP_PAYMENT_URL", "").strip()
+
+
+def payment_link_for(email: str = "", name: str = "") -> str:
+    base = payment_url()
+    if not base:
+        return ""
+    query = {
+        key: value
+        for key, value in {
+            "email": str(email or "").strip(),
+            "name": str(name or "").strip(),
+        }.items()
+        if value
+    }
+    if not query:
+        return base
+    parts = urlsplit(base)
+    extra = urlencode(query)
+    current = parts.query
+    joined = f"{current}&{extra}" if current else extra
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, joined, parts.fragment))
 
 
 def configured_users() -> dict[str, dict]:
@@ -230,8 +252,36 @@ def login():
         {
             "ok": False,
             "requires_payment": True,
-            "payment_url": payment_url(),
-            "error": "Acesso ainda nÃ£o liberado. FaÃ§a o pagamento para ativar.",
+            "payment_url": payment_link_for(email),
+            "error": "Acesso ainda não liberado. Faça o pagamento para ativar.",
+        }
+    ), 402
+
+
+@app.post("/api/signup")
+def signup():
+    body = request.get_json(silent=True) or {}
+    name = str(body.get("name", "")).strip()
+    email = str(body.get("email", "")).strip().casefold()
+    password = str(body.get("password", ""))
+    if not name or not email or not password:
+        return error("Preencha nome, e-mail e senha.")
+    if "@" not in email or "." not in email.rsplit("@", 1)[-1]:
+        return error("Informe um e-mail válido.")
+    if len(password) < 6:
+        return error("Use uma senha com pelo menos 6 caracteres.")
+
+    user = configured_users().get(email)
+    if user and user.get("active"):
+        return error("Esta conta já está liberada. Use Entrar.", 409)
+
+    link = payment_link_for(email, name)
+    return jsonify(
+        {
+            "ok": False,
+            "requires_payment": True,
+            "payment_url": link,
+            "error": "Cadastro iniciado. Faça o pagamento para liberar o acesso.",
         }
     ), 402
 

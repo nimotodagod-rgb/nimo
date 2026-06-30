@@ -10,7 +10,7 @@
   <title>Editor Conquistando</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icon.png">
-  <link rel="stylesheet" href="/static/styles.css?v=24">
+  <link rel="stylesheet" href="/static/styles.css?v=25">
 </head>
 <body>
   <header class="topbar">
@@ -34,10 +34,20 @@
         O editor comercial usa login. Se o acesso ainda não estiver liberado,
         você será enviado para o pagamento.
       </p>
+      <div class="auth-tabs" role="tablist" aria-label="Acesso">
+        <button id="loginTab" type="button" class="active">Entrar</button>
+        <button id="signupTab" type="button">Criar conta</button>
+      </div>
       <form class="login-form" id="loginForm">
         <label>E-mail<input id="loginEmail" type="email" autocomplete="email"></label>
         <label>Senha<input id="loginPassword" type="password" autocomplete="current-password"></label>
         <button type="submit" class="primary large">Entrar</button>
+      </form>
+      <form class="login-form" id="signupForm" hidden>
+        <label>Nome<input id="signupName" type="text" autocomplete="name"></label>
+        <label>E-mail<input id="signupEmail" type="email" autocomplete="email"></label>
+        <label>Senha<input id="signupPassword" type="password" autocomplete="new-password"></label>
+        <button type="submit" class="primary large">Criar conta e pagar</button>
       </form>
       <a id="paymentButton" class="payment-button" hidden>Ir para pagamento</a>
       <p id="loginStatus" class="message" aria-live="polite"></p>
@@ -269,6 +279,6 @@ Pares:"></textarea>
     </ol>
   </dialog>
 
-  <script src="/static/app.js?v=24" defer></script>
+  <script src="/static/app.js?v=25" defer></script>
 </body>
 </html>

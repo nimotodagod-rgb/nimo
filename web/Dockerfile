@@ -6,6 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    libreoffice-impress-nogui \
     python3 \
     python3-flask \
     python3-pil \

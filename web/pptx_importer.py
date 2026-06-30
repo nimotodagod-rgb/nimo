@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import base64
 import io
+import os
 import posixpath
 import re
-from pathlib import PurePosixPath
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path, PurePosixPath
 from zipfile import BadZipFile, ZipFile
 import xml.etree.ElementTree as ET
 
@@ -19,6 +23,70 @@ NS = {
     "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
     "pr": "http://schemas.openxmlformats.org/package/2006/relationships",
 }
+
+
+def convert_legacy_powerpoint(raw: bytes) -> bytes:
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice and os.name != "nt":
+        candidate = Path("/usr/lib/libreoffice/program/soffice")
+        if candidate.is_file():
+            soffice = str(candidate)
+    if not soffice and os.name == "nt":
+        candidate = (
+            Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
+            / "LibreOffice"
+            / "program"
+            / "soffice.exe"
+        )
+        if candidate.is_file():
+            soffice = str(candidate)
+    if not soffice:
+        raise ValueError("A conversão do formato .ppt não está disponível neste servidor.")
+
+    with tempfile.TemporaryDirectory(prefix="conquistando-ppt-") as folder:
+        workspace = Path(folder)
+        source = workspace / "arquivo-importado.ppt"
+        output_dir = workspace / "convertido"
+        profile = workspace / "perfil-libreoffice"
+        output_dir.mkdir()
+        profile.mkdir()
+        source.write_bytes(raw)
+        command = [
+            soffice,
+            f"-env:UserInstallation={profile.resolve().as_uri()}",
+            "--headless",
+            "--nologo",
+            "--nodefault",
+            "--nolockcheck",
+            "--norestore",
+            "--nofirststartwizard",
+            "--convert-to",
+            'pptx:Impress MS PowerPoint 2007 XML',
+            "--outdir",
+            str(output_dir),
+            str(source),
+        ]
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=90,
+                env={**os.environ, "HOME": str(workspace)},
+                creationflags=0x08000000 if os.name == "nt" else 0,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise ValueError("A conversão do arquivo .ppt demorou demais.") from error
+        converted = output_dir / "arquivo-importado.pptx"
+        if result.returncode != 0 or not converted.is_file():
+            details = (result.stderr or result.stdout or "").strip()
+            raise ValueError(
+                "Não foi possível converter este arquivo .ppt."
+                + (f" {details[:180]}" if details else "")
+            )
+        return converted.read_bytes()
 
 
 def _shape_text(shape: ET.Element) -> str:

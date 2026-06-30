@@ -1208,8 +1208,9 @@ $("#importPowerPointButton").addEventListener("click", () => {
 $("#powerPointImport").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
-  if (!file.name.toLowerCase().endsWith(".pptx")) {
-    setMessage("Use um arquivo .pptx. No PowerPoint antigo, escolha Salvar como .pptx.", "error");
+  const extension = file.name.toLowerCase().split(".").pop();
+  if (!["ppt", "pptx"].includes(extension)) {
+    setMessage("Use um arquivo PowerPoint .ppt ou .pptx.", "error");
     event.target.value = "";
     return;
   }
@@ -1228,7 +1229,7 @@ $("#powerPointImport").addEventListener("change", async (event) => {
   }
   activateBrand(inferredBrand);
   setBusy(true);
-  setMessage("Lendo o PowerPoint…");
+  setMessage(extension === "ppt" ? "Convertendo o PowerPoint antigo…" : "Lendo o PowerPoint…");
   try {
     const form = new FormData();
     form.append("powerpoint", file, file.name);
@@ -1282,8 +1283,11 @@ $("#powerPointImport").addEventListener("change", async (event) => {
       result.photo_count === 3
         ? "As três fotos também foram recuperadas."
         : `Foram recuperadas ${result.photo_count || 0} de 3 fotos; selecione as restantes.`;
+    const conversionMessage = result.converted_from_legacy
+      ? "O formato .ppt antigo foi convertido para edição."
+      : "";
     setMessage(
-      `PowerPoint aberto. Revise as informações antes de gerar novamente. ${photoMessage}`,
+      `PowerPoint aberto. ${conversionMessage} Revise as informações antes de gerar novamente. ${photoMessage}`,
       result.missing?.length ? "error" : "success"
     );
     setDraftStatus("PowerPoint importado e salvo neste aparelho.", "success");

@@ -18,7 +18,7 @@ from PIL import Image, ImageOps
 
 from ooxml_worker import build_pptx
 from parser import parse_quick_text, validate_parsed
-from pptx_importer import import_powerpoint
+from pptx_importer import convert_legacy_powerpoint, import_powerpoint
 
 
 WEB_DIR = Path(__file__).resolve().parent
@@ -370,20 +370,27 @@ def import_existing_powerpoint():
         return payment_required_error()
     uploaded = request.files.get("powerpoint")
     if not uploaded or not uploaded.filename:
-        return error("Selecione um arquivo PowerPoint .pptx.")
-    if not uploaded.filename.casefold().endswith(".pptx"):
-        return error("Use um arquivo .pptx. Arquivos antigos .ppt devem ser salvos como .pptx.")
+        return error("Selecione um arquivo PowerPoint .ppt ou .pptx.")
+    suffix = Path(uploaded.filename).suffix.casefold()
+    if suffix not in {".ppt", ".pptx"}:
+        return error("Use um arquivo PowerPoint .ppt ou .pptx.")
     raw = uploaded.read()
     if not raw:
         return error("O PowerPoint selecionado está vazio.")
     try:
+        converted_from_legacy = suffix == ".ppt"
+        if converted_from_legacy:
+            with generation_lock:
+                raw = convert_legacy_powerpoint(raw)
         imported = import_powerpoint(raw)
     except ValueError as exc:
         return error(str(exc), 422)
     except Exception:
         app.logger.exception("powerpoint import failed")
         return error("Não foi possível ler este PowerPoint.", 422)
-    return jsonify({"ok": True, **imported})
+    return jsonify(
+        {"ok": True, "converted_from_legacy": converted_from_legacy, **imported}
+    )
 
 
 @app.post("/api/process")

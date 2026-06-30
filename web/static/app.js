@@ -126,6 +126,12 @@ function setAuthMode(mode) {
   $("#signupForm").hidden = !signup;
   $("#loginTab").classList.toggle("active", !signup);
   $("#signupTab").classList.toggle("active", signup);
+  $("#authTitle").textContent = signup
+    ? "Crie sua conta no Editor Conquistando"
+    : "Entre para usar o Editor Conquistando";
+  $("#authCopy").textContent = signup
+    ? "Informe seus dados para iniciar o cadastro. Depois você será enviado para o pagamento."
+    : "O editor comercial usa login. Se o acesso ainda não estiver liberado, você será enviado para o pagamento.";
   setLoginStatus("");
   setPaymentLink("");
 }

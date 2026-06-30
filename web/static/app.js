@@ -145,13 +145,18 @@ function setTopPayment(session = {}) {
 
 async function startSubscriptionCheckout(event) {
   event?.preventDefault();
+  const checkoutWindow = window.open("about:blank", "_blank");
+  if (checkoutWindow) checkoutWindow.opener = null;
   const buttons = [$("#topPaymentButton"), $("#paymentButton"), $("#subscriptionPaymentLink")].filter(Boolean);
   buttons.forEach((button) => button.classList.add("disabled"));
   setMessage("Criando assinatura no Mercado Pago…");
   setLoginStatus("Criando assinatura no Mercado Pago…");
   const openCheckout = (url) => {
-    const opened = window.open(url, "_blank", "noopener,noreferrer");
-    if (!opened) window.location.href = url;
+    if (checkoutWindow && !checkoutWindow.closed) {
+      checkoutWindow.location.replace(url);
+    } else {
+      window.location.href = url;
+    }
   };
   try {
     if (state.paymentUrl) {
@@ -161,6 +166,7 @@ async function startSubscriptionCheckout(event) {
     const response = await fetch("/api/create-subscription", { method: "POST" });
     const result = await response.json();
     if (result.already_active) {
+      checkoutWindow?.close();
       await refreshAccess();
       setMessage("Assinatura já liberada.", "success");
       return;
@@ -170,6 +176,7 @@ async function startSubscriptionCheckout(event) {
     }
     openCheckout(result.init_point);
   } catch (error) {
+    checkoutWindow?.close();
     setMessage(error.message, "error");
     setLoginStatus(error.message, "error");
   } finally {

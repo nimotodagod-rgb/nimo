@@ -102,6 +102,19 @@ def plan_amount() -> float:
     return round(amount, 2)
 
 
+def plan_title() -> str:
+    return os.environ.get("APP_PLAN_TITLE", "Editor Conquistando").strip() or "Editor Conquistando"
+
+
+def paid_email_set() -> set[str]:
+    raw = os.environ.get("APP_PAID_EMAILS", "").strip()
+    return {
+        item.strip().casefold()
+        for item in raw.replace(";", ",").split(",")
+        if item.strip()
+    }
+
+
 def mp_api(method: str, path: str, payload: dict | None = None) -> dict:
     token = mercadopago_access_token()
     if not token:
@@ -336,6 +349,9 @@ def known_users() -> dict[str, dict]:
                 if extra.get(key):
                     user = {**user, key: str(extra.get(key))}
         users[email] = user
+    for email in paid_email_set():
+        if email in users:
+            users[email] = {**users[email], "active": True}
     return users
 
 
@@ -584,8 +600,7 @@ def create_subscription():
     try:
         amount = plan_amount()
         payload = {
-            "reason": os.environ.get("APP_PLAN_TITLE", "Editor Conquistando Mensal").strip()
-            or "Editor Conquistando Mensal",
+            "reason": plan_title(),
             "external_reference": email,
             "payer_email": email,
             "back_url": public_base_url(),
@@ -751,8 +766,9 @@ def signup():
         return error("Nao foi possivel salvar a conta agora. Tente novamente.", 500)
 
     link = payment_link_for(email, name)
+    paid_email = email in paid_email_set()
     session.permanent = True
-    session["access"] = "trial"
+    session["access"] = "user" if paid_email else "trial"
     session["email"] = email
     session["name"] = name
     session["razao_social"] = ""
@@ -760,12 +776,16 @@ def signup():
         {
             "ok": True,
             "has_access": True,
-            "role": "trial",
+            "role": "user" if paid_email else "trial",
             "email": email,
             "name": name,
-            "payment_required": True,
-            "payment_url": link,
-            "message": "Conta criada. O pagamento fica disponível no topo.",
+            "payment_required": not paid_email,
+            "payment_url": "" if paid_email else link,
+            "message": (
+                "Conta criada com acesso liberado."
+                if paid_email
+                else "Conta criada. O pagamento fica disponível no topo."
+            ),
         }
     )
 

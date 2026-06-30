@@ -517,11 +517,10 @@ def build_pptx(payload: dict) -> str:
         height=6_858_000,
         color="FFFFFF",
     )
-    inset = 10_080
+    inset = 0
     for index, frame in enumerate(frames, start=1):
         # Recoloca a moldura original acima da base branca.
         sp_tree.remove(frame)
-        sp_tree.append(frame)
         photo = Path(payload["fotos"][index - 1]["arquivo"])
         media_name = f"ppt/media/conquistando-photo-{index}.jpeg"
         files[media_name] = photo.read_bytes()
@@ -539,6 +538,8 @@ def build_pptx(payload: dict) -> str:
             width=width - inset * 2,
             height=height - inset * 2,
         )
+        # Mantém a linha fina do quadro acima da foto sem criar margem branca.
+        sp_tree.append(frame)
 
     # Recoloca as legendas originais por cima das fotos e da correção branca.
     for caption in captions:

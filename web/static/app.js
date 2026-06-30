@@ -46,6 +46,7 @@ const state = {
   drafts: {
     "br-sport": { text: "", photos: [], parsed: null, textVersion: "", data: null, status: "" },
     actvitta: { text: "", photos: [], parsed: null, textVersion: "", data: null, status: "" },
+    importado: { text: "", photos: [], parsed: null, textVersion: "", data: null, status: "", sourceBrand: "br-sport" },
   },
   previewUrls: [],
   slideIndex: 0,
@@ -148,9 +149,13 @@ async function startSubscriptionCheckout(event) {
   buttons.forEach((button) => button.classList.add("disabled"));
   setMessage("Criando assinatura no Mercado Pago…");
   setLoginStatus("Criando assinatura no Mercado Pago…");
+  const openCheckout = (url) => {
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) window.location.href = url;
+  };
   try {
     if (state.paymentUrl) {
-      window.location.href = state.paymentUrl;
+      openCheckout(state.paymentUrl);
       return;
     }
     const response = await fetch("/api/create-subscription", { method: "POST" });
@@ -163,7 +168,7 @@ async function startSubscriptionCheckout(event) {
     if (!response.ok || !result.ok || !result.init_point) {
       throw new Error(result.error || "Não foi possível criar a assinatura.");
     }
-    window.location.href = result.init_point;
+    openCheckout(result.init_point);
   } catch (error) {
     setMessage(error.message, "error");
     setLoginStatus(error.message, "error");
@@ -365,10 +370,19 @@ function applyFixedHeader(data) {
   return target;
 }
 
+function applyHeaderForBrand(data, brand = state.brand) {
+  const target = data || emptyFields();
+  if (brand !== "importado") return applyFixedHeader(target);
+  if (state.accountRazaoLocked && state.accountRazao) {
+    target.razao = state.accountRazao;
+  }
+  return target;
+}
+
 function updateDraftsWithFixedHeader() {
-  Object.values(state.drafts).forEach((draft) => {
-    draft.data = applyFixedHeader(draft.data || emptyFields());
-    if (draft.parsed) draft.parsed = applyFixedHeader(draft.parsed);
+  Object.entries(state.drafts).forEach(([brand, draft]) => {
+    draft.data = applyHeaderForBrand(draft.data || emptyFields(), brand);
+    if (draft.parsed) draft.parsed = applyHeaderForBrand(draft.parsed, brand);
   });
   persistDraftMetadata();
   loadActiveDraft();
@@ -389,6 +403,7 @@ function persistDraftMetadata() {
       data: draft.data,
       status: draft.status,
       textVersion: draft.textVersion,
+      sourceBrand: draft.sourceBrand,
     };
   });
   localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(saved));
@@ -406,6 +421,9 @@ function restoreDraftMetadata() {
       draft.status = typeof source.status === "string" ? source.status : "";
       draft.textVersion =
         typeof source.textVersion === "string" ? source.textVersion : "";
+      if (brand === "importado") {
+        draft.sourceBrand = source.sourceBrand === "actvitta" ? "actvitta" : "br-sport";
+      }
       draft.parsed =
         draft.data && draft.textVersion === draft.text.trim() ? draft.data : null;
     });
@@ -586,6 +604,11 @@ function activateBrand(brand) {
   schedulePreview();
 }
 
+function effectivePreviewBrand() {
+  if (state.brand !== "importado") return state.brand;
+  return activeDraft().sourceBrand === "actvitta" ? "actvitta" : "br-sport";
+}
+
 function buildCaptionEditor() {
   $("#captionGrid").replaceChildren(
     ...[0, 1, 2].map((index) => {
@@ -706,12 +729,16 @@ function saveActiveDraft() {
 function loadActiveDraft() {
   const draft = activeDraft();
   $("#quickText").value = draft.text;
-  draft.data = applyFixedHeader(draft.data || emptyFields());
+  draft.data = applyHeaderForBrand(draft.data || emptyFields());
   fillFields(draft.data);
   $("#parseStatus").textContent = draft.status;
   $("#photos").value = "";
   $("#brandDataTitle").textContent =
-    state.brand === "br-sport" ? "Informações BR SPORT" : "Informações ACTVITTA";
+    state.brand === "br-sport"
+      ? "Informações BR SPORT"
+      : state.brand === "actvitta"
+        ? "Informações ACTVITTA"
+        : `PowerPoint importado (${brandLabel(effectivePreviewBrand())})`;
   renderPhotos();
   clearPreview();
   setMessage("");
@@ -736,7 +763,7 @@ async function interpret(force = false) {
   });
   const result = await response.json();
   if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível interpretar.");
-  result.data = applyFixedHeader(result.data);
+  result.data = applyHeaderForBrand(result.data);
   draft.parsed = result.data;
   draft.textVersion = text;
   draft.text = text;
@@ -809,7 +836,7 @@ function appendMarkedText(parent, value = "") {
 function addSlideHeader(slide, title, data) {
   const header = element("img", "ppt-header");
   header.alt = "";
-  header.src = `/brand-header/${state.brand}.png`;
+  header.src = `/brand-header/${effectivePreviewBrand()}.png`;
   slide.append(header);
   slide.append(element("div", "ppt-title", title));
 
@@ -949,7 +976,9 @@ function filenameFromDisposition(response) {
 }
 
 function brandLabel(brand) {
-  return brand === "br-sport" ? "BR SPORT" : "ACTVITTA";
+  if (brand === "br-sport") return "BR SPORT";
+  if (brand === "actvitta") return "ACTVITTA";
+  return "IMPORTADO";
 }
 
 async function prepareBrandDraft(brand) {
@@ -970,14 +999,14 @@ async function prepareBrandDraft(brand) {
     if (!response.ok || !result.ok) {
       throw new Error(`${brandLabel(brand)}: ${result.error || "falha ao interpretar."}`);
     }
-    draft.parsed = applyFixedHeader(result.data);
+    draft.parsed = applyHeaderForBrand(result.data, brand);
     draft.data = draft.parsed;
     draft.textVersion = text;
     draft.status = result.missing.length
       ? `${result.missing.length} campo(s) precisam de revisão`
       : "Informações prontas";
   } else {
-    draft.data = applyFixedHeader(draft.data || draft.parsed);
+    draft.data = applyHeaderForBrand(draft.data || draft.parsed, brand);
   }
   validatePreviewData(draft.data);
   persistDraftMetadata();
@@ -985,8 +1014,14 @@ async function prepareBrandDraft(brand) {
 }
 
 async function processBrandPowerPoint(brand, draft) {
+  const outputBrand =
+    brand === "importado"
+      ? draft.sourceBrand === "actvitta"
+        ? "actvitta"
+        : "br-sport"
+      : brand;
   const form = new FormData();
-  form.append("brand", brand);
+  form.append("brand", outputBrand);
   form.append("mode", "generate");
   form.append("text", draft.text);
   form.append("parsed_json", JSON.stringify(draft.data));
@@ -1321,16 +1356,17 @@ $("#powerPointImport").addEventListener("change", async (event) => {
     ? "actvitta"
     : /br[\s_-]*sport/i.test(file.name)
       ? "br-sport"
-      : state.brand;
+      : effectivePreviewBrand();
   const brandName = brandLabel(inferredBrand);
   const confirmed = window.confirm(
-    `Abrir este PowerPoint em ${brandName}? As informações atuais desta marca serão substituídas.`
+    `Abrir este PowerPoint no rascunho IMPORTADO usando o modelo ${brandName}? O rascunho importado atual será substituído.`
   );
   if (!confirmed) {
     event.target.value = "";
     return;
   }
-  activateBrand(inferredBrand);
+  activateBrand("importado");
+  activeDraft().sourceBrand = inferredBrand;
   setBusy(true);
   setMessage(extension === "ppt" ? "Convertendo o PowerPoint antigo…" : "Lendo o PowerPoint…");
   try {
@@ -1355,16 +1391,13 @@ $("#powerPointImport").addEventListener("change", async (event) => {
     if (state.accountRazaoLocked && state.accountRazao) {
       importedHeader.razao = state.accountRazao;
     }
-    if (Object.values(importedHeader).every(Boolean)) {
-      state.fixedHeader = importedHeader;
-      localStorage.setItem(FIXED_HEADER_KEY, JSON.stringify(importedHeader));
-      fillFixedHeaderForm();
-      updateDraftsWithFixedHeader();
+    const data = result.data || emptyFields();
+    if (state.accountRazaoLocked && state.accountRazao) {
+      data.razao = state.accountRazao;
     }
-
-    const data = applyFixedHeader(result.data || emptyFields());
     const text = quickTextFromData(data);
     const draft = activeDraft();
+    draft.sourceBrand = inferredBrand;
     draft.text = text;
     draft.data = data;
     draft.parsed = data;
@@ -1393,10 +1426,10 @@ $("#powerPointImport").addEventListener("change", async (event) => {
       ? "O formato .ppt antigo foi convertido para edição."
       : "";
     setMessage(
-      `PowerPoint aberto. ${conversionMessage} Revise as informações antes de gerar novamente. ${photoMessage}`,
+      `PowerPoint aberto no rascunho IMPORTADO. ${conversionMessage} Revise as informações antes de gerar novamente. ${photoMessage}`,
       result.missing?.length ? "error" : "success"
     );
-    setDraftStatus("PowerPoint importado e salvo neste aparelho.", "success");
+    setDraftStatus("PowerPoint importado em área separada. BR SPORT e ACTVITTA não foram alterados.", "success");
   } catch (error) {
     setMessage(error.message, "error");
   } finally {
@@ -1443,8 +1476,12 @@ $("#parseButton").addEventListener("click", async () => {
   if (requiresSubscription()) return;
   setMessage("");
   try {
-    await interpret(true);
-    setMessage("Informações distribuídas. Você já pode visualizar.", "success");
+    if (hasThreePhotos(activeDraft().photos)) {
+      await renderPreview();
+    } else {
+      await interpret(true);
+      setMessage("Informações distribuídas. Envie as três fotos para visualizar a prévia completa.", "success");
+    }
   } catch (error) {
     setMessage(error.message, "error");
   }
@@ -1500,6 +1537,7 @@ $("#previewButton").addEventListener("click", () => {
 });
 $("#generateButton").addEventListener("click", () => {
   if (requiresSubscription()) return;
+  $("#generateImported").hidden = state.brand !== "importado";
   $("#generateDialog").showModal();
 });
 $("#closeGenerateDialog").addEventListener("click", () => $("#generateDialog").close());

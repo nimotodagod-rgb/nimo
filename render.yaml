@@ -15,8 +15,10 @@ services:
         sync: false
       - key: APP_PLAN_AMOUNT
         sync: false
+      - key: APP_PAID_EMAILS
+        value: "nimotoda@gmail.com"
       - key: APP_PLAN_TITLE
-        value: "Editor Conquistando Mensal"
+        value: "Editor Conquistando"
       - key: APP_PUBLIC_URL
         value: "https://editor-conquistando.onrender.com"
       - key: PORT

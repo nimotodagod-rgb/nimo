@@ -247,7 +247,7 @@ def add_photo(doc, page, frame, photo_path, context):
     )
     graphic = provider.queryGraphic((prop("URL", file_url(photo_path)),))
     picture = doc.createInstance("com.sun.star.drawing.GraphicObjectShape")
-    inset = 28
+    inset = 0
     picture.Position = point(frame.Position.X + inset, frame.Position.Y + inset)
     picture.Size = size(frame.Size.Width - inset * 2, frame.Size.Height - inset * 2)
     picture.Graphic = graphic

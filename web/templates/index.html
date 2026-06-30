@@ -10,7 +10,7 @@
   <title>Editor Conquistando</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icon.png">
-  <link rel="stylesheet" href="/static/styles.css?v=37">
+  <link rel="stylesheet" href="/static/styles.css?v=38">
 </head>
 <body>
   <header class="topbar">
@@ -88,6 +88,7 @@
       <div class="segmented" role="radiogroup" aria-label="Marca">
         <button class="brand-option active" data-brand="br-sport">BR SPORT</button>
         <button class="brand-option" data-brand="actvitta">ACTVITTA</button>
+        <button class="brand-option" data-brand="importado">IMPORTADO</button>
       </div>
 
       <details id="fixedHeaderSettings">
@@ -184,7 +185,7 @@ código/cliente:
 Cidade:
 Pares:"></textarea>
       <div class="inline-actions">
-        <button id="parseButton" class="secondary">Interpretar informações</button>
+        <button id="parseButton" class="secondary">Visualizar prévia</button>
         <span id="parseStatus"></span>
       </div>
       <p id="draftStatus" class="draft-status" aria-live="polite">
@@ -296,6 +297,8 @@ Pares:"></textarea>
     <div class="generate-options">
       <button type="button" class="secondary" data-generate-brand="br-sport">BR SPORT</button>
       <button type="button" class="secondary" data-generate-brand="actvitta">ACTVITTA</button>
+      <button id="generateImported" type="button" class="secondary"
+        data-generate-brand="importado" hidden>POWERPOINT IMPORTADO</button>
       <button type="button" class="primary" data-generate-brand="all">Gerar os dois</button>
     </div>
   </dialog>
@@ -318,6 +321,6 @@ Pares:"></textarea>
     <a id="subscriptionPaymentLink" class="payment-button">Ir para pagamento</a>
   </dialog>
 
-  <script src="/static/app.js?v=37" defer></script>
+  <script src="/static/app.js?v=38" defer></script>
 </body>
 </html>

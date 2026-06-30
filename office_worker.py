@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -81,14 +82,25 @@ def fill_body(shape, values):
     cursor.CharFontName = "Times New Roman"
     cursor.CharHeight = 20.0
     cursor.CharWeight = NORMAL
-    labels = ("1.", "2.", "3.")
+    labels = ("VENDAS:", "MKT:", "CARTEIRA DE CLIENTES:")
     for index, (label, value) in enumerate(zip(labels, values), start=1):
         cursor.CharWeight = BOLD
         text.insertString(cursor, label, False)
         cursor.CharWeight = NORMAL
-        text.insertString(cursor, f" {str(value).strip()}", False)
+        text.insertString(cursor, " ", False)
+        marked = str(value).strip()
+        position = 0
+        for match in re.finditer(r"\*\*(.+?)\*\*", marked):
+            if match.start() > position:
+                text.insertString(cursor, marked[position : match.start()], False)
+            cursor.CharWeight = BOLD
+            text.insertString(cursor, match.group(1), False)
+            cursor.CharWeight = NORMAL
+            position = match.end()
+        if position < len(marked):
+            text.insertString(cursor, marked[position:], False)
         if index != 3:
-            text.insertString(cursor, "\n", False)
+            text.insertString(cursor, "\n\n", False)
     style_text(shape, 20, LEFT)
 
 

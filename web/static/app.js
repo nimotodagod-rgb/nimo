@@ -667,6 +667,21 @@ function element(tag, className = "", text = "") {
   return node;
 }
 
+function appendMarkedText(parent, value = "") {
+  const text = String(value || "");
+  const pattern = /\*\*(.+?)\*\*/g;
+  let cursor = 0;
+  let match;
+  while ((match = pattern.exec(text))) {
+    if (match.index > cursor) {
+      parent.append(document.createTextNode(text.slice(cursor, match.index)));
+    }
+    parent.append(element("strong", "", match[1]));
+    cursor = pattern.lastIndex;
+  }
+  if (cursor < text.length) parent.append(document.createTextNode(text.slice(cursor)));
+}
+
 function addSlideHeader(slide, title, data) {
   const header = element("img", "ppt-header");
   header.alt = "";
@@ -691,12 +706,13 @@ function createTextSlide(title, values, data) {
   addSlideHeader(slide, title, data);
   const body = element("div", "ppt-body");
   [
-    ["1.", values.vendas],
-    ["2.", values.marketing],
-    ["3.", values.carteira],
+    ["VENDAS:", values.vendas],
+    ["MKT:", values.marketing],
+    ["CARTEIRA DE CLIENTES:", values.carteira],
   ].forEach(([label, value]) => {
     const row = element("p");
-    row.append(element("strong", "", label), document.createTextNode(` ${value}`));
+    row.append(element("strong", "", label), document.createTextNode(" "));
+    appendMarkedText(row, value);
     body.append(row);
   });
   slide.append(body);
@@ -927,6 +943,53 @@ $("#insertTemplate").addEventListener("click", () => {
   $("#quickText").dispatchEvent(new Event("input", { bubbles: true }));
   $("#quickText").focus();
   setTemplateStatus("Modelo colocado no campo.", "success");
+});
+function toggleBoldSelection() {
+  if (requiresSubscription()) return;
+  const field = $("#quickText");
+  const start = field.selectionStart;
+  const end = field.selectionEnd;
+  const value = field.value;
+  const selected = value.slice(start, end);
+  let replacement;
+  let selectionStart;
+  let selectionEnd;
+  let replaceStart = start;
+  let replaceEnd = end;
+  if (selected.startsWith("**") && selected.endsWith("**") && selected.length >= 4) {
+    replacement = selected.slice(2, -2);
+    selectionStart = start;
+    selectionEnd = start + replacement.length;
+  } else if (
+    start >= 2 &&
+    value.slice(start - 2, start) === "**" &&
+    value.slice(end, end + 2) === "**"
+  ) {
+    replacement = selected;
+    replaceStart = start - 2;
+    replaceEnd = end + 2;
+    selectionStart = replaceStart;
+    selectionEnd = replaceStart + replacement.length;
+  } else {
+    replacement = `**${selected}**`;
+    selectionStart = start + 2;
+    selectionEnd = selected ? end + 2 : start + 2;
+  }
+  field.setRangeText(replacement, replaceStart, replaceEnd, "end");
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+  field.focus();
+  field.setSelectionRange(selectionStart, selectionEnd);
+}
+$("#boldButton").addEventListener("pointerdown", (event) => {
+  // Mantém a seleção do textarea ao tocar no botão, inclusive no Safari/iPad.
+  event.preventDefault();
+});
+$("#boldButton").addEventListener("click", toggleBoldSelection);
+$("#quickText").addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+    event.preventDefault();
+    toggleBoldSelection();
+  }
 });
 $("#saveFixedHeader").addEventListener("click", () => {
   if (requiresSubscription()) return;

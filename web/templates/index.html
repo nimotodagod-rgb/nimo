@@ -10,7 +10,7 @@
   <title>Editor Conquistando</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icon.png">
-  <link rel="stylesheet" href="/static/styles.css?v=30">
+  <link rel="stylesheet" href="/static/styles.css?v=31">
 </head>
 <body>
   <header class="topbar">
@@ -128,6 +128,12 @@
           </div>
         </div>
       </details>
+      <div class="text-format-toolbar" aria-label="Formatação do texto">
+        <button id="boldButton" type="button" class="bold-button" title="Aplicar negrito ao trecho selecionado">
+          <b>B</b> Negrito
+        </button>
+        <span>Selecione um trecho ou toque antes de digitar. Os ** viram negrito no PowerPoint.</span>
+      </div>
       <textarea id="quickText" rows="16" spellcheck="true" placeholder="AÇÕES BEM SUCEDIDAS
 VENDAS:
 
@@ -298,6 +304,6 @@ Pares:"></textarea>
     <a id="subscriptionPaymentLink" class="payment-button">Ir para pagamento</a>
   </dialog>
 
-  <script src="/static/app.js?v=30" defer></script>
+  <script src="/static/app.js?v=31" defer></script>
 </body>
 </html>

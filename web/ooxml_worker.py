@@ -9,6 +9,7 @@ from __future__ import annotations
 from copy import deepcopy
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
+import re
 import xml.etree.ElementTree as ET
 
 
@@ -70,16 +71,6 @@ def expand_body_box(shape: ET.Element) -> None:
         ext.set("cy", "5000000")
 
 
-def expand_caption_box(shape: ET.Element) -> None:
-    """Mantém fonte 14 e aumenta a altura da legenda para evitar corte."""
-    xfrm = shape.find("./p:spPr/a:xfrm", NS)
-    if xfrm is None:
-        return
-    ext = xfrm.find("a:ext", NS)
-    if ext is not None:
-        ext.set("cy", str(max(int(ext.get("cy", "0")), 1_250_000)))
-
-
 def max_shape_id(root: ET.Element) -> int:
     values = [
         int(node.get("id", "0"))
@@ -113,6 +104,21 @@ def add_run(
     text_node.text = text
 
 
+def add_marked_runs(paragraph: ET.Element, value: str, *, size: int) -> None:
+    """Converte marcações **texto** em trechos realmente negritados no PPTX."""
+    text = str(value or "")
+    cursor = 0
+    for match in re.finditer(r"\*\*(.+?)\*\*", text):
+        if match.start() > cursor:
+            add_run(paragraph, text[cursor : match.start()], size=size, bold=False)
+        add_run(paragraph, match.group(1), size=size, bold=True)
+        cursor = match.end()
+    if cursor < len(text):
+        add_run(paragraph, text[cursor:], size=size, bold=False)
+    elif not text:
+        add_run(paragraph, "", size=size, bold=False)
+
+
 def replace_text_rows(
     shape: ET.Element,
     rows: list[tuple[str, str]],
@@ -136,7 +142,8 @@ def replace_text_rows(
         line_spacing = ET.SubElement(p_props, q("a", "lnSpc"))
         ET.SubElement(line_spacing, q("a", "spcPct"), {"val": "100000"})
         add_run(paragraph, label, size=size, bold=bold_labels)
-        add_run(paragraph, f" {str(value).strip()}", size=size, bold=False)
+        add_run(paragraph, " ", size=size, bold=False)
+        add_marked_runs(paragraph, str(value).strip(), size=size)
         end = ET.SubElement(paragraph, q("a", "endParaRPr"), {"lang": "pt-BR", "sz": str(size)})
         ET.SubElement(end, q("a", "latin"), {"typeface": "Times New Roman"})
         if blank_between and index != len(rows) - 1:
@@ -436,9 +443,9 @@ def build_pptx(payload: dict) -> str:
     replace_text_rows(
         action_shape,
         [
-            ("1.", payload["acoes"]["vendas"]),
-            ("2.", payload["acoes"]["marketing"]),
-            ("3.", payload["acoes"]["carteira"]),
+            ("VENDAS:", payload["acoes"]["vendas"]),
+            ("MKT:", payload["acoes"]["marketing"]),
+            ("CARTEIRA DE CLIENTES:", payload["acoes"]["carteira"]),
         ],
         size=2000,
         bold_labels=True,
@@ -447,9 +454,9 @@ def build_pptx(payload: dict) -> str:
     replace_text_rows(
         improvement_shape,
         [
-            ("1.", payload["melhorias"]["vendas"]),
-            ("2.", payload["melhorias"]["marketing"]),
-            ("3.", payload["melhorias"]["carteira"]),
+            ("VENDAS:", payload["melhorias"]["vendas"]),
+            ("MKT:", payload["melhorias"]["marketing"]),
+            ("CARTEIRA DE CLIENTES:", payload["melhorias"]["carteira"]),
         ],
         size=2000,
         bold_labels=True,
@@ -480,7 +487,6 @@ def build_pptx(payload: dict) -> str:
 
     for index, caption in enumerate(captions):
         item = payload["fotos"][index]
-        expand_caption_box(caption)
         replace_text_rows(
             caption,
             [
@@ -498,8 +504,24 @@ def build_pptx(payload: dict) -> str:
     if sp_tree is None:
         raise RuntimeError("Estrutura do slide de imagens não encontrada.")
     next_id = max_shape_id(slide5) + 1
+    # O antigo .ppt da ACTVITTA contém transparências que alguns leitores
+    # transformam em grandes áreas pretas. Uma base branca sobre os objetos
+    # antigos deixa PowerPoint, LibreOffice e PDF com o mesmo resultado.
+    next_id = add_rectangle(
+        sp_tree,
+        next_id,
+        name="Base branca compatível",
+        x=0,
+        y=0,
+        width=12_193_588,
+        height=6_858_000,
+        color="FFFFFF",
+    )
     inset = 10_080
     for index, frame in enumerate(frames, start=1):
+        # Recoloca a moldura original acima da base branca.
+        sp_tree.remove(frame)
+        sp_tree.append(frame)
         photo = Path(payload["fotos"][index - 1]["arquivo"])
         media_name = f"ppt/media/conquistando-photo-{index}.jpeg"
         files[media_name] = photo.read_bytes()
@@ -517,6 +539,11 @@ def build_pptx(payload: dict) -> str:
             width=width - inset * 2,
             height=height - inset * 2,
         )
+
+    # Recoloca as legendas originais por cima das fotos e da correção branca.
+    for caption in captions:
+        sp_tree.remove(caption)
+        sp_tree.append(caption)
 
     header = Path(payload["header_image"])
     header_media = "ppt/media/conquistando-header.png"

@@ -194,7 +194,9 @@ def crop_photo(source, destination: Path) -> None:
             new_height = int(width / ratio)
             top = (height - new_height) // 2
             image = image.crop((0, top, width, top + new_height))
-        image = image.resize((1200, 1111), Image.Resampling.LANCZOS)
+        # A proporção 1200 × 1109 acompanha os quadros originais do template
+        # (aprox. 1,082:1), evitando qualquer aparência de foto esticada.
+        image = image.resize((1200, 1109), Image.Resampling.LANCZOS)
         image.save(destination, "JPEG", quality=94, optimize=True)
 
 

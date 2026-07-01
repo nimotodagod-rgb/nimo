@@ -10,6 +10,25 @@ Não criar o banco gratuito do Render cedo demais: ele expira 30 dias após a
 criação. Ativar próximo do início dos testes comerciais e migrar para o plano
 Basic quando houver compradores.
 
+## Administração e recuperação de senha
+
+Implementado em 30/06/2026:
+
+- O PIN de desenvolvedor libera um botão `Clientes` no topo do editor.
+- O painel `Clientes` lista contas, permite liberar/bloquear acesso manualmente,
+  alterar a razão social pelo suporte e gerar link de recuperação de senha.
+- O usuário tem `Esqueci minha senha`; se SMTP estiver configurado, o link é
+  enviado por e-mail. Sem SMTP, a solicitação fica registrada e o suporte gera
+  o link pelo painel.
+- Links de recuperação expiram em 30 minutos e funcionam uma única vez.
+- O PIN tem limite de tentativas para reduzir teste por força bruta.
+
+Variáveis opcionais para e-mail: `SMTP_HOST`, `SMTP_FROM`, `SMTP_PORT`,
+`SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_STARTTLS`.
+
+Configurar `APP_SECRET_KEY` no Render antes do uso comercial para manter as
+sessões estáveis após reinício/redeploy.
+
 ## Licenciamento comercial por dispositivo — futuro
 
 Decisão registrada em 28/06/2026. Não implementar agora.

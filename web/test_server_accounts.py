@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 import server
@@ -24,6 +25,8 @@ class AccountFlowTests(unittest.TestCase):
             clear=False,
         )
         self.environment.start()
+        server.pin_attempts.clear()
+        server.reset_attempts.clear()
         server.app.config.update(TESTING=True, SECRET_KEY="account-flow-test")
         self.client = server.app.test_client()
 
@@ -82,12 +85,95 @@ class AccountFlowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["razao_social"], "Empresa Original Ltda")
 
+    def test_password_reset_link_changes_password_once(self) -> None:
+        self.signup()
+        with self.client.session_transaction() as session:
+            session["access"] = "dev"
+
+        response = self.client.post("/api/admin/accounts/cliente@example.com/reset-link")
+        self.assertEqual(response.status_code, 200)
+        link = response.get_json()["reset_url"]
+        token = parse_qs(urlsplit(link).query)["reset"][0]
+
         response = self.client.post(
-            "/api/account-razao",
-            json={"razao_social": "Outra Empresa Ltda"},
+            "/api/password-reset/confirm",
+            json={
+                "token": token,
+                "password": "nova-senha",
+                "password_confirm": "nova-senha",
+            },
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json()["razao_social"], "Empresa Original Ltda")
+
+        self.client.post("/api/logout")
+        response = self.client.post(
+            "/api/login",
+            json={"email": "cliente@example.com", "password": "senha-segura"},
+        )
+        self.assertEqual(response.status_code, 401)
+
+        response = self.client.post(
+            "/api/login",
+            json={"email": "cliente@example.com", "password": "nova-senha"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.post(
+            "/api/password-reset/confirm",
+            json={
+                "token": token,
+                "password": "outra-senha",
+                "password_confirm": "outra-senha",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_admin_requires_developer_session(self) -> None:
+        self.signup()
+        response = self.client.get("/api/admin/accounts")
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_can_manage_account(self) -> None:
+        self.signup()
+        with self.client.session_transaction() as session:
+            session["access"] = "dev"
+
+        response = self.client.get("/api/admin/accounts")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["accounts"][0]["email"], "cliente@example.com")
+
+        response = self.client.post(
+            "/api/admin/accounts/cliente@example.com/company",
+            json={"razao_social": "Empresa Pelo Suporte"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["razao_social"], "Empresa Pelo Suporte")
+
+        response = self.client.post(
+            "/api/admin/accounts/cliente@example.com/access",
+            json={"active": True},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["active"])
+
+        self.client.post("/api/logout")
+        response = self.client.post(
+            "/api/login",
+            json={"email": "cliente@example.com", "password": "senha-segura"},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertFalse(payload["payment_required"])
+        self.assertEqual(payload["razao_social"], "Empresa Pelo Suporte")
+
+    def test_dev_pin_rate_limit(self) -> None:
+        with patch.dict(os.environ, {"APP_PIN": "2749"}, clear=False):
+            for _ in range(5):
+                response = self.client.post("/api/dev-pin", json={"pin": "0000"})
+                self.assertEqual(response.status_code, 401)
+
+            response = self.client.post("/api/dev-pin", json={"pin": "0000"})
+            self.assertEqual(response.status_code, 429)
 
 
 if __name__ == "__main__":

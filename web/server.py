@@ -7,11 +7,13 @@ import json
 import os
 import secrets
 import shutil
+import smtplib
 import subprocess
 import sys
 import tempfile
 import threading
 from datetime import datetime, timezone, timedelta
+from email.message import EmailMessage
 from pathlib import Path
 from urllib import error as urlerror
 from urllib import request as urlrequest
@@ -43,7 +45,11 @@ BRAND_FILES = {
 }
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
-app.secret_key = os.environ.get("APP_SECRET_KEY", os.environ.get("SECRET_KEY", "conquistando-dev-secret"))
+app.secret_key = (
+    os.environ.get("APP_SECRET_KEY", "").strip()
+    or os.environ.get("SECRET_KEY", "").strip()
+    or secrets.token_urlsafe(48)
+)
 app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
     days=int(os.environ.get("APP_SESSION_DAYS", "30"))
@@ -52,6 +58,9 @@ generation_lock = threading.Lock()
 accounts_lock = threading.Lock()
 database_schema_lock = threading.Lock()
 database_schema_ready = False
+security_attempts_lock = threading.Lock()
+pin_attempts: dict[str, list[datetime]] = {}
+reset_attempts: dict[str, datetime] = {}
 
 
 def libreoffice_paths() -> tuple[str, str]:
@@ -396,6 +405,117 @@ def set_account_active(email: str, active: bool, **extra: str) -> bool:
     return True
 
 
+def update_account_record(email: str, **changes) -> dict:
+    normalized_email = str(email or "").strip().casefold()
+    if not normalized_email:
+        raise ValueError("Conta inválida.")
+    with accounts_lock:
+        users = raw_registered_users()
+        user = users.get(normalized_email)
+        if not isinstance(user, dict):
+            raise LookupError("Conta não encontrada.")
+        for key, value in changes.items():
+            if value is None:
+                user.pop(key, None)
+            else:
+                user[key] = value
+        user["updated_at"] = datetime.now(timezone.utc).isoformat()
+        save_raw_user(normalized_email, user)
+        return user
+
+
+def reset_token_hash(token: str) -> str:
+    return hashlib.sha256(str(token or "").encode("utf-8")).hexdigest()
+
+
+def issue_password_reset(email: str) -> str:
+    normalized_email = str(email or "").strip().casefold()
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+    update_account_record(
+        normalized_email,
+        password_reset_hash=reset_token_hash(token),
+        password_reset_expires_at=expires_at.isoformat(),
+        password_reset_requested_at=datetime.now(timezone.utc).isoformat(),
+    )
+    return token
+
+
+def password_reset_url(token: str) -> str:
+    return f"{public_base_url()}/?reset={urlencode({'token': token}).split('=', 1)[1]}"
+
+
+def smtp_configured() -> bool:
+    return bool(
+        os.environ.get("SMTP_HOST", "").strip()
+        and os.environ.get("SMTP_FROM", "").strip()
+    )
+
+
+def send_password_reset_email(email: str, name: str, link: str) -> None:
+    host = os.environ.get("SMTP_HOST", "").strip()
+    sender = os.environ.get("SMTP_FROM", "").strip()
+    if not host or not sender:
+        raise RuntimeError("Envio de e-mail ainda não configurado.")
+    port = int(os.environ.get("SMTP_PORT", "587"))
+    username = os.environ.get("SMTP_USERNAME", "").strip()
+    password = os.environ.get("SMTP_PASSWORD", "")
+    use_tls = os.environ.get("SMTP_STARTTLS", "true").strip().casefold() not in {
+        "0",
+        "false",
+        "no",
+    }
+
+    message = EmailMessage()
+    message["Subject"] = "Redefinição de senha — Editor Conquistando"
+    message["From"] = sender
+    message["To"] = email
+    message.set_content(
+        "\n".join(
+            [
+                f"Olá, {name or 'cliente'}.",
+                "",
+                "Recebemos uma solicitação para redefinir sua senha.",
+                f"Use este link nos próximos 30 minutos: {link}",
+                "",
+                "Se você não solicitou a alteração, ignore esta mensagem.",
+            ]
+        )
+    )
+    with smtplib.SMTP(host, port, timeout=20) as smtp:
+        if use_tls:
+            smtp.starttls()
+        if username:
+            smtp.login(username, password)
+        smtp.send_message(message)
+
+
+def reset_request_is_limited(key: str) -> bool:
+    now = datetime.now(timezone.utc)
+    with security_attempts_lock:
+        previous = reset_attempts.get(key)
+        if previous and now - previous < timedelta(seconds=60):
+            return True
+        reset_attempts[key] = now
+    return False
+
+
+def pin_request_is_limited(key: str, succeeded: bool = False) -> bool:
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=15)
+    with security_attempts_lock:
+        recent = [moment for moment in pin_attempts.get(key, []) if moment >= cutoff]
+        if succeeded:
+            pin_attempts.pop(key, None)
+            return False
+        if len(recent) >= 5:
+            pin_attempts[key] = recent
+            return True
+        recent.append(now)
+        pin_attempts[key] = recent
+    return False
+
+
 def known_users() -> dict[str, dict]:
     raw_registered = raw_registered_users()
     users = registered_users()
@@ -532,6 +652,10 @@ def payment_required_error():
             "payment_url": payment_link_for(session.get("email", ""), session.get("name", "")),
         }
     ), 402
+
+
+def admin_required_error():
+    return error("Acesso exclusivo do desenvolvedor.", 403)
 
 
 def error(message: str, status: int = 400):
@@ -859,12 +983,194 @@ def signup():
     )
 
 
+@app.post("/api/password-reset/request")
+def request_password_reset():
+    body = request.get_json(silent=True) or {}
+    email = str(body.get("email", "")).strip().casefold()
+    if "@" not in email:
+        return error("Informe um e-mail válido.")
+    throttle_key = f"{request.remote_addr or 'unknown'}:{email}"
+    if reset_request_is_limited(throttle_key):
+        return error("Aguarde um minuto antes de solicitar novamente.", 429)
+
+    user = registered_users().get(email)
+    if user:
+        try:
+            token = issue_password_reset(email)
+            if smtp_configured():
+                send_password_reset_email(
+                    email,
+                    user.get("name", ""),
+                    password_reset_url(token),
+                )
+        except Exception:
+            app.logger.exception("password reset request failed")
+    return jsonify(
+        {
+            "ok": True,
+            "message": (
+                "Se o e-mail estiver cadastrado, a recuperação foi registrada. "
+                "O link será enviado por e-mail ou pelo suporte."
+            ),
+        }
+    )
+
+
+@app.post("/api/password-reset/confirm")
+def confirm_password_reset():
+    body = request.get_json(silent=True) or {}
+    token = str(body.get("token", "")).strip()
+    password = str(body.get("password", ""))
+    confirmation = str(body.get("password_confirm", ""))
+    if not token:
+        return error("Link de recuperação inválido.")
+    if len(password) < 6:
+        return error("Use uma senha com pelo menos 6 caracteres.")
+    if not hmac.compare_digest(password, confirmation):
+        return error("As senhas não conferem.")
+
+    digest = reset_token_hash(token)
+    matched_email = ""
+    now = datetime.now(timezone.utc)
+    for email, user in raw_registered_users().items():
+        stored = str(user.get("password_reset_hash", ""))
+        expires_raw = str(user.get("password_reset_expires_at", ""))
+        if not stored or not hmac.compare_digest(stored, digest):
+            continue
+        try:
+            expires_at = datetime.fromisoformat(expires_raw)
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+        except ValueError:
+            break
+        if expires_at <= now:
+            break
+        matched_email = email
+        break
+
+    if not matched_email:
+        return error("Este link expirou ou já foi utilizado.", 400)
+
+    update_account_record(
+        matched_email,
+        password_hash=password_hash(password),
+        password_reset_hash=None,
+        password_reset_expires_at=None,
+        password_reset_requested_at=None,
+    )
+    user = known_users().get(matched_email)
+    if not user:
+        return error("Não foi possível acessar a conta após redefinir a senha.", 500)
+    result = start_user_session(matched_email, user)
+    result["message"] = "Senha alterada com sucesso."
+    return jsonify(result)
+
+
+@app.get("/api/admin/accounts")
+def admin_accounts():
+    if session.get("access") != "dev":
+        return admin_required_error()
+    raw = raw_registered_users()
+    users = known_users()
+    accounts = []
+    for email, user in users.items():
+        stored = raw.get(email, {})
+        accounts.append(
+            {
+                "email": email,
+                "name": user.get("name", email),
+                "active": bool(user.get("active")),
+                "razao_social": str(user.get("razao_social", "")).strip(),
+                "payment_status": str(
+                    stored.get("payment_status", user.get("payment_status", ""))
+                ),
+                "subscription_id": str(
+                    stored.get(
+                        "mercadopago_subscription_id",
+                        user.get("mercadopago_subscription_id", ""),
+                    )
+                ),
+                "created_at": str(stored.get("created_at", "")),
+                "reset_requested": bool(
+                    stored.get("password_reset_requested_at")
+                    or stored.get("password_reset_hash")
+                ),
+                "can_reset_password": bool(stored.get("password_hash")),
+            }
+        )
+    accounts.sort(key=lambda item: (not item["active"], item["name"].casefold(), item["email"]))
+    return jsonify({"ok": True, "accounts": accounts})
+
+
+@app.post("/api/admin/accounts/<path:email>/access")
+def admin_account_access(email):
+    if session.get("access") != "dev":
+        return admin_required_error()
+    normalized = str(email or "").strip().casefold()
+    if normalized in paid_email_set():
+        return error("Esta conta possui liberação fixa nas configurações.", 409)
+    body = request.get_json(silent=True) or {}
+    active = bool(body.get("active"))
+    if normalized not in known_users():
+        return error("Conta não encontrada.", 404)
+    set_account_active(
+        normalized,
+        active,
+        payment_status="manual-active" if active else "manual-blocked",
+    )
+    return jsonify({"ok": True, "active": active})
+
+
+@app.post("/api/admin/accounts/<path:email>/company")
+def admin_account_company(email):
+    if session.get("access") != "dev":
+        return admin_required_error()
+    normalized = str(email or "").strip().casefold()
+    body = request.get_json(silent=True) or {}
+    razao = str(body.get("razao_social", "")).strip()
+    if normalized not in raw_registered_users():
+        return error("Conta não encontrada.", 404)
+    update_account_record(normalized, razao_social=razao)
+    return jsonify({"ok": True, "razao_social": razao})
+
+
+@app.post("/api/admin/accounts/<path:email>/reset-link")
+def admin_account_reset_link(email):
+    if session.get("access") != "dev":
+        return admin_required_error()
+    normalized = str(email or "").strip().casefold()
+    user = registered_users().get(normalized)
+    if not user:
+        return error("Esta conta não possui senha cadastrada no editor.", 404)
+    token = issue_password_reset(normalized)
+    return jsonify(
+        {
+            "ok": True,
+            "reset_url": password_reset_url(token),
+            "expires_in_minutes": 30,
+        }
+    )
+
+
 @app.post("/api/dev-pin")
 def dev_pin():
     body = request.get_json(silent=True) or {}
     pin = str(body.get("pin", "")).strip()
+    attempt_key = request.remote_addr or "unknown"
+    with security_attempts_lock:
+        recent = [
+            moment
+            for moment in pin_attempts.get(attempt_key, [])
+            if moment >= datetime.now(timezone.utc) - timedelta(minutes=15)
+        ]
+        pin_attempts[attempt_key] = recent
+        limited = len(recent) >= 5
+    if limited:
+        return error("Muitas tentativas. Aguarde 15 minutos.", 429)
     if not check_pin_value(pin):
+        pin_request_is_limited(attempt_key)
         return error("PIN incorreto.", 401)
+    pin_request_is_limited(attempt_key, succeeded=True)
     session.permanent = True
     session["access"] = "dev"
     session["email"] = ""

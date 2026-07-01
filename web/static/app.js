@@ -57,6 +57,7 @@ const state = {
   paymentUrl: "",
   accountRazao: "",
   accountRazaoLocked: false,
+  resetToken: "",
 };
 
 const fieldIds = {
@@ -112,6 +113,13 @@ function setTemplateStatus(text, kind = "") {
 
 function setLoginStatus(text, kind = "") {
   const status = $("#loginStatus");
+  status.textContent = text;
+  status.className = `message ${kind}`.trim();
+}
+
+function setDialogStatus(selector, text, kind = "") {
+  const status = $(selector);
+  if (!status) return;
   status.textContent = text;
   status.className = `message ${kind}`.trim();
 }
@@ -269,6 +277,7 @@ function setAuthenticated(session = {}) {
     session.role === "dev"
       ? "Desenvolvedor"
       : session.name || session.email || "Usuário liberado";
+  $("#adminButton").hidden = session.role !== "dev";
   setTopPayment(session);
   setSubscriptionState(session);
   syncAccountRazao(session);
@@ -280,6 +289,7 @@ function setLocked(session = {}) {
   $("#appShell").hidden = false;
   $("#appShell").classList.add("auth-locked");
   $("#sessionChip").hidden = true;
+  $("#adminButton").hidden = true;
   setTopPayment({});
   setSubscriptionState({});
   syncAccountRazao({});
@@ -343,6 +353,179 @@ async function copyTextToClipboard(text) {
   const ok = document.execCommand("copy");
   helper.remove();
   if (!ok) throw new Error("Não foi possível copiar automaticamente.");
+}
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function cssEscape(value = "") {
+  if (window.CSS?.escape) return CSS.escape(String(value));
+  return String(value).replace(/["\\]/g, "\\$&");
+}
+
+function openPasswordResetRequest() {
+  $("#passwordResetEmail").value = $("#loginEmail").value.trim();
+  setDialogStatus("#passwordResetRequestStatus", "");
+  $("#passwordResetRequestDialog").showModal();
+  $("#passwordResetEmail").focus();
+}
+
+function openPasswordReset(token) {
+  state.resetToken = token || "";
+  $("#newPassword").value = "";
+  $("#newPasswordConfirm").value = "";
+  setDialogStatus("#passwordResetStatus", "");
+  $("#passwordResetDialog").showModal();
+  $("#newPassword").focus();
+}
+
+function clearResetTokenFromUrl() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("reset")) return;
+  url.searchParams.delete("reset");
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function initializePasswordResetFromUrl() {
+  const token = new URLSearchParams(window.location.search).get("reset");
+  if (token) openPasswordReset(token);
+}
+
+function adminStatus(text, kind = "") {
+  setDialogStatus("#adminStatus", text, kind);
+}
+
+function adminBadge(account) {
+  if (account.active) return "Liberado";
+  if (account.payment_status) return "Pendente";
+  return "Sem assinatura";
+}
+
+function renderAdminAccounts(accounts = []) {
+  const list = $("#adminAccounts");
+  if (!accounts.length) {
+    list.innerHTML = '<p class="admin-empty">Nenhuma conta encontrada ainda.</p>';
+    return;
+  }
+  list.innerHTML = accounts
+    .map((account) => {
+      const email = escapeHtml(account.email);
+      const activeClass = account.active ? "active" : "blocked";
+      const actionText = account.active ? "Bloquear" : "Liberar";
+      const statusText = escapeHtml(adminBadge(account));
+      const payment = escapeHtml(account.payment_status || "manual/sem pagamento");
+      const subscription = escapeHtml(account.subscription_id || "");
+      const created = escapeHtml(account.created_at || "");
+      const resetNote = account.reset_requested
+        ? '<span class="admin-note">Recuperação solicitada.</span>'
+        : "";
+      return `<article class="admin-account ${activeClass}">
+        <div class="admin-account-top">
+          <div>
+            <strong>${escapeHtml(account.name || account.email)}</strong>
+            <span>${email}</span>
+          </div>
+          <em>${statusText}</em>
+        </div>
+        <label>Razão social
+          <input data-admin-company="${email}" value="${escapeHtml(account.razao_social || "")}"
+            placeholder="Razão fixa da conta">
+        </label>
+        <div class="admin-meta">
+          <span>Status: ${payment}</span>
+          ${subscription ? `<span>Assinatura: ${subscription}</span>` : ""}
+          ${created ? `<span>Criada: ${created}</span>` : ""}
+          ${resetNote}
+        </div>
+        <div class="admin-actions">
+          <button type="button" class="secondary small" data-admin-action="toggle"
+            data-email="${email}" data-active="${account.active ? "0" : "1"}">${actionText}</button>
+          <button type="button" class="ghost small" data-admin-action="company"
+            data-email="${email}">Salvar razão</button>
+          <button type="button" class="ghost small" data-admin-action="reset"
+            data-email="${email}" ${account.can_reset_password ? "" : "disabled"}>Link de senha</button>
+        </div>
+        <small class="admin-reset-output" data-reset-output="${email}"></small>
+      </article>`;
+    })
+    .join("");
+}
+
+async function loadAdminAccounts() {
+  adminStatus("Carregando clientes...");
+  const response = await fetch("/api/admin/accounts");
+  const result = await response.json();
+  if (!response.ok || !result.ok) {
+    throw new Error(result.error || "Não foi possível carregar os clientes.");
+  }
+  renderAdminAccounts(result.accounts || []);
+  adminStatus(`${(result.accounts || []).length} cliente(s) carregado(s).`, "success");
+}
+
+async function openAdminDialog() {
+  $("#adminDialog").showModal();
+  try {
+    await loadAdminAccounts();
+  } catch (error) {
+    adminStatus(error.message, "error");
+  }
+}
+
+async function handleAdminAction(event) {
+  const button = event.target.closest("[data-admin-action]");
+  if (!button) return;
+  const email = button.dataset.email || "";
+  const action = button.dataset.adminAction;
+  button.disabled = true;
+  adminStatus("Salvando...");
+  try {
+    if (action === "toggle") {
+      const active = button.dataset.active === "1";
+      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(email)}/access`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível alterar o acesso.");
+      await loadAdminAccounts();
+      adminStatus(active ? "Cliente liberado." : "Cliente bloqueado.", "success");
+      return;
+    }
+    if (action === "company") {
+      const input = $(`[data-admin-company="${cssEscape(email)}"]`);
+      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(email)}/company`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ razao_social: input?.value.trim() || "" }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível salvar a razão social.");
+      adminStatus("Razão social atualizada.", "success");
+      return;
+    }
+    if (action === "reset") {
+      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(email)}/reset-link`, {
+        method: "POST",
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível gerar o link.");
+      await copyTextToClipboard(result.reset_url);
+      const output = $(`[data-reset-output="${cssEscape(email)}"]`);
+      if (output) output.textContent = "Link copiado. Expira em 30 minutos: " + result.reset_url;
+      adminStatus("Link de recuperação copiado.", "success");
+    }
+  } catch (error) {
+    adminStatus(error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function fillFixedHeaderForm() {
@@ -1403,6 +1586,67 @@ $$(".toggle-password").forEach((button) => {
     button.setAttribute("aria-label", showing ? "Ver senha" : "Ocultar senha");
   });
 });
+$("#forgotPasswordButton").addEventListener("click", openPasswordResetRequest);
+$("#closePasswordResetRequest").addEventListener("click", () => $("#passwordResetRequestDialog").close());
+$("#closePasswordReset").addEventListener("click", () => $("#passwordResetDialog").close());
+$("#passwordResetRequestForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setDialogStatus("#passwordResetRequestStatus", "Solicitando recuperação...");
+  try {
+    const response = await fetch("/api/password-reset/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: $("#passwordResetEmail").value.trim() }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível solicitar.");
+    setDialogStatus("#passwordResetRequestStatus", result.message || "Solicitação registrada.", "success");
+  } catch (error) {
+    setDialogStatus("#passwordResetRequestStatus", error.message, "error");
+  }
+});
+$("#passwordResetForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const password = $("#newPassword").value;
+  const confirmation = $("#newPasswordConfirm").value;
+  if (password !== confirmation) {
+    setDialogStatus("#passwordResetStatus", "As senhas não conferem.", "error");
+    $("#newPasswordConfirm").focus();
+    return;
+  }
+  setDialogStatus("#passwordResetStatus", "Alterando senha...");
+  try {
+    const response = await fetch("/api/password-reset/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: state.resetToken,
+        password,
+        password_confirm: confirmation,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível alterar a senha.");
+    clearResetTokenFromUrl();
+    $("#passwordResetDialog").close();
+    $("#newPassword").value = "";
+    $("#newPasswordConfirm").value = "";
+    setLoginStatus(result.message || "Senha alterada.", "success");
+    await refreshAccess();
+  } catch (error) {
+    setDialogStatus("#passwordResetStatus", error.message, "error");
+  }
+});
+$("#adminButton").addEventListener("click", openAdminDialog);
+$("#closeAdminDialog").addEventListener("click", () => $("#adminDialog").close());
+$("#refreshAdminAccounts").addEventListener("click", async () => {
+  try {
+    await loadAdminAccounts();
+  } catch (error) {
+    adminStatus(error.message, "error");
+  }
+});
+$("#adminAccounts").addEventListener("click", handleAdminAction);
 $("#loginTab").addEventListener("click", () => setAuthMode("login"));
 $("#signupTab").addEventListener("click", () => setAuthMode("signup"));
 $("#logoutButton").addEventListener("click", async () => {
@@ -1775,4 +2019,5 @@ function configureOptionalFeatures() {
 }
 
 configureOptionalFeatures();
+initializePasswordResetFromUrl();
 refreshAccess();

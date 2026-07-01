@@ -210,6 +210,18 @@ main {
   font-weight: 900;
   text-decoration: none;
 }
+.text-button {
+  justify-self: center;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: #ffca6f;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.text-button:hover { color: #ffe1a6; }
 .dev-access {
   margin-top: 18px;
 }
@@ -948,6 +960,99 @@ dialog {
 dialog::backdrop { background: rgba(0,0,0,.7); backdrop-filter: blur(4px); }
 dialog h2 { font-size: 21px; }
 dialog li { margin: 11px 0; color: #d7d9de; }
+.dialog-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.dialog-form button {
+  padding: 12px 14px;
+}
+.admin-dialog {
+  width: min(760px, calc(100% - 28px));
+  max-height: min(780px, calc(100vh - 32px));
+  overflow: auto;
+}
+.admin-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.admin-heading p:not(.eyebrow) {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.admin-accounts {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+.admin-empty {
+  margin: 0;
+  color: var(--muted);
+}
+.admin-account {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(41,45,54,.58);
+}
+.admin-account.active { border-color: rgba(118,213,139,.42); }
+.admin-account.blocked { border-color: rgba(255,176,46,.24); }
+.admin-account-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-account-top strong {
+  display: block;
+  font-size: 15px;
+}
+.admin-account-top span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-account-top em {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255,176,46,.13);
+  color: #ffe0a1;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.admin-account.active .admin-account-top em {
+  background: rgba(118,213,139,.16);
+  color: #b5ffc2;
+}
+.admin-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.admin-note { color: #ffca6f; }
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-reset-output {
+  display: block;
+  color: #b5ffc2;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
 .generate-options {
   display: grid;
   gap: 9px;

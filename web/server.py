@@ -50,6 +50,8 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
 )
 generation_lock = threading.Lock()
 accounts_lock = threading.Lock()
+database_schema_lock = threading.Lock()
+database_schema_ready = False
 
 
 def libreoffice_paths() -> tuple[str, str]:
@@ -200,6 +202,66 @@ def accounts_file() -> Path:
     return base / "users.json"
 
 
+def database_url() -> str:
+    return os.environ.get("DATABASE_URL", "").strip()
+
+
+def postgres_connection():
+    try:
+        import psycopg2
+    except ImportError as exc:
+        raise RuntimeError(
+            "O suporte ao banco PostgreSQL não está instalado no servidor."
+        ) from exc
+    return psycopg2.connect(database_url(), connect_timeout=10)
+
+
+def ensure_database_schema() -> None:
+    global database_schema_ready
+    if not database_url() or database_schema_ready:
+        return
+    with database_schema_lock:
+        if database_schema_ready:
+            return
+        with postgres_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS editor_accounts (
+                        email TEXT PRIMARY KEY,
+                        data JSONB NOT NULL,
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+        database_schema_ready = True
+
+
+def save_raw_user(email: str, user: dict) -> None:
+    normalized_email = str(email or "").strip().casefold()
+    record = {**user, "email": normalized_email}
+    if database_url():
+        ensure_database_schema()
+        with postgres_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO editor_accounts (email, data, updated_at)
+                    VALUES (%s, %s::jsonb, NOW())
+                    ON CONFLICT (email) DO UPDATE
+                    SET data = EXCLUDED.data, updated_at = NOW()
+                    """,
+                    (normalized_email, json.dumps(record, ensure_ascii=False)),
+                )
+        return
+
+    path = accounts_file()
+    users = raw_registered_users()
+    users[normalized_email] = record
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def password_hash(password: str) -> str:
     salt = secrets.token_hex(16)
     rounds = 150_000
@@ -224,14 +286,7 @@ def password_matches(password: str, stored: str) -> bool:
 
 
 def registered_users() -> dict[str, dict]:
-    path = accounts_file()
-    if not path.is_file():
-        return {}
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        app.logger.warning("Arquivo de contas invÃ¡lido ou indisponÃ­vel.")
-        return {}
+    raw = raw_registered_users()
     if isinstance(raw, list):
         raw = {str(item.get("email", "")).casefold(): item for item in raw if isinstance(item, dict)}
     users: dict[str, dict] = {}
@@ -253,6 +308,23 @@ def registered_users() -> dict[str, dict]:
 
 
 def raw_registered_users() -> dict[str, dict]:
+    if database_url():
+        ensure_database_schema()
+        with postgres_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT email, data FROM editor_accounts")
+                rows = cursor.fetchall()
+        users: dict[str, dict] = {}
+        for email, data in rows:
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+            if isinstance(data, dict):
+                users[str(email).strip().casefold()] = data
+        return users
+
     path = accounts_file()
     if not path.is_file():
         return {}
@@ -270,20 +342,17 @@ def raw_registered_users() -> dict[str, dict]:
 
 
 def save_registered_user(email: str, name: str, password: str) -> None:
-    path = accounts_file()
     with accounts_lock:
         users = registered_users()
         if email in users:
-            raise ValueError("Esta conta jÃ¡ existe. Use Entrar.")
-        users[email] = {
+            raise ValueError("Esta conta já existe. Use Entrar.")
+        save_raw_user(email, {
             "email": email,
             "name": name,
             "password_hash": password_hash(password),
             "active": False,
             "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
+        })
 
 
 def save_account_razao(email: str, razao: str) -> str:
@@ -291,7 +360,6 @@ def save_account_razao(email: str, razao: str) -> str:
     normalized_razao = str(razao or "").strip()
     if not normalized_email or not normalized_razao:
         raise ValueError("Informe a razao social.")
-    path = accounts_file()
     with accounts_lock:
         users = raw_registered_users()
         user = users.get(normalized_email)
@@ -306,9 +374,7 @@ def save_account_razao(email: str, razao: str) -> str:
         if current and current != normalized_razao:
             return current
         user["razao_social"] = current or normalized_razao
-        users[normalized_email] = user
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
+        save_raw_user(normalized_email, user)
         return user["razao_social"]
 
 
@@ -316,7 +382,6 @@ def set_account_active(email: str, active: bool, **extra: str) -> bool:
     normalized_email = str(email or "").strip().casefold()
     if not normalized_email:
         return False
-    path = accounts_file()
     with accounts_lock:
         users = raw_registered_users()
         user = users.get(normalized_email)
@@ -327,9 +392,7 @@ def set_account_active(email: str, active: bool, **extra: str) -> bool:
         for key, value in extra.items():
             if value is not None:
                 user[key] = str(value)
-        users[normalized_email] = user
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
+        save_raw_user(normalized_email, user)
     return True
 
 

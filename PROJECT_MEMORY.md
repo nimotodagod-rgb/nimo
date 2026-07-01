@@ -1,5 +1,15 @@
 # Memória do projeto — Editor Conquistando
 
+## Persistência de contas e assinaturas
+
+O código aceita `DATABASE_URL` e cria automaticamente a tabela
+`editor_accounts` em PostgreSQL. Enquanto essa variável não estiver
+configurada, continua usando o arquivo local temporário.
+
+Não criar o banco gratuito do Render cedo demais: ele expira 30 dias após a
+criação. Ativar próximo do início dos testes comerciais e migrar para o plano
+Basic quando houver compradores.
+
 ## Licenciamento comercial por dispositivo — futuro
 
 Decisão registrada em 28/06/2026. Não implementar agora.

@@ -595,7 +595,13 @@ def index():
 
 @app.get("/health")
 def health():
-    return jsonify({"ok": True})
+    return jsonify(
+        {
+            "ok": True,
+            "version": os.environ.get("RENDER_GIT_COMMIT", "")[:7],
+            "account_storage": "postgres" if database_url() else "temporary-file",
+        }
+    )
 
 
 @app.get("/api/session")

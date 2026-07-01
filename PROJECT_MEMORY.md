@@ -10,6 +10,15 @@ Não criar o banco gratuito do Render cedo demais: ele expira 30 dias após a
 criação. Ativar próximo do início dos testes comerciais e migrar para o plano
 Basic quando houver compradores.
 
+Banco gratuito criado no Render em 01/07/2026:
+
+- Nome: `editor-conquistando-db`
+- Serviço conectado: `editor-conquistando`
+- Variável usada no serviço: `DATABASE_URL`
+- `/health` confirmado com `account_storage: postgres`
+- Vencimento informado pelo Render: 31/07/2026
+- Fazer upgrade antes do vencimento para não correr risco de perder contas.
+
 ## Administração e recuperação de senha
 
 Implementado em 30/06/2026:
